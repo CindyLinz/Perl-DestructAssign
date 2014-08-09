@@ -244,7 +244,7 @@ static void prepare_anonlisthash_node(pTHX_ OP *o){
     UV const_count = 0;
 
     if( cLISTOPo->op_first->op_type!=OP_PUSHMARK )
-        croak("invalid dec pattern");
+        croak("invalid des pattern");
     for(kid=cLISTOPo->op_first->op_sibling; kid; kid=kid->op_sibling)
         switch( kid->op_type ){
             case OP_ANONLIST:
@@ -267,7 +267,7 @@ static void prepare_anonlisthash_node(pTHX_ OP *o){
             case OP_RV2SV:
                 break;
             default:
-                croak("invalid dec pattern (can't contain %s)", OP_NAME(kid));
+                croak("invalid des pattern (can't contain %s)", OP_NAME(kid));
         }
 
     if( UNLIKELY(o->op_targ) ) // for safe.. it should be always 0
