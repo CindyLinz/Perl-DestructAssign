@@ -18,7 +18,10 @@ our @ISA = qw(Exporter);
 # If you do not need this, moving things directly into @EXPORT or @EXPORT_OK
 # will save memory.
 our %EXPORT_TAGS = ( 'all' => [ qw(
-	
+    des
+    des_my
+    des_alias
+    des_my_alias
 ) ] );
 
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
@@ -51,6 +54,15 @@ sub AUTOLOAD {
     }
     goto &$AUTOLOAD;
 }
+
+sub des($) : lvalue { ... }
+sub des_my($) : lvalue { ... }
+sub des_alias($) : lvalue { ... }
+sub des_my_alias($) : lvalue { ... }
+#sub des { ... }
+#sub des_my { ... }
+#sub des_alias { ... }
+#sub des_my_alias { ... }
 
 require XSLoader;
 XSLoader::load('DestructAssign', $VERSION);
