@@ -9,8 +9,8 @@
 
 //#define DEBUG
 
-static void prepare_anonlist_node(pTHX_ OP * o);
-static void prepare_anonhash_node(pTHX_ OP * o);
+static void prepare_anonlist_node(pTHX_ OP * o, int my, int alias);
+static void prepare_anonhash_node(pTHX_ OP * o, int my, int alias);
 
 static int anonlist_set(pTHX_ SV * sv, MAGIC * mg){
     SV * src;
@@ -239,7 +239,7 @@ static OP * my_pp_anonhash(pTHX){
     RETURN;
 }
 
-static void prepare_anonlisthash_node(pTHX_ OP *o){
+static void prepare_anonlisthash_node(pTHX_ OP *o, int my, int alias){
     OP *kid;
     UV const_count = 0;
 
@@ -248,10 +248,10 @@ static void prepare_anonlisthash_node(pTHX_ OP *o){
     for(kid=cLISTOPo->op_first->op_sibling; kid; kid=kid->op_sibling)
         switch( kid->op_type ){
             case OP_ANONLIST:
-                prepare_anonlist_node(aTHX_ kid);
+                prepare_anonlist_node(aTHX_ kid, my, alias);
                 break;
             case OP_ANONHASH:
-                prepare_anonhash_node(aTHX_ kid);
+                prepare_anonhash_node(aTHX_ kid, my, alias);
                 break;
             case OP_CONST:
             case OP_UNDEF:
@@ -295,50 +295,28 @@ static void prepare_anonlisthash_node(pTHX_ OP *o){
     }
 }
 
-static void prepare_anonlist_node(pTHX_ OP * o){
+static void prepare_anonlist_node(pTHX_ OP * o, int my, int alias){
 #ifdef DEBUG
     printf("prepare anonlist node\n");
 #endif
-    prepare_anonlisthash_node(aTHX_ o);
+    prepare_anonlisthash_node(aTHX_ o, my, alias);
     o->op_ppaddr = my_pp_anonlist;
 }
 
-static void prepare_anonhash_node(pTHX_ OP * o){
+static void prepare_anonhash_node(pTHX_ OP * o, int my, int alias){
 #ifdef DEBUG
     printf("prepare anonhash node\n");
 #endif
-    prepare_anonlisthash_node(aTHX_ o);
+    prepare_anonlisthash_node(aTHX_ o, my, alias);
     o->op_ppaddr = my_pp_anonhash;
 }
 
-static void prepare_arg_head(pTHX_ OP * o){
-#ifdef DEBUG
-    printf("prepare arg head %s (%d: %s) %u\n", OP_NAME(o), (int)o->op_type, OP_DESC(o), o->op_private);
-#endif
-
-    switch( o->op_type ){
-        case OP_ANONLIST:
-            prepare_anonlist_node(aTHX_ o);
-            break;
-        case OP_ANONHASH:
-            prepare_anonhash_node(aTHX_ o);
-            break;
-        case OP_PADSV:
-        case OP_PADAV:
-        case OP_PADHV:
-            return;
-        default:
-            croak("DestructAssign: Unrecognized pattern");
-            break;
-    }
-}
-
-static unsigned int traverse_args(pTHX_ unsigned int found_index, OP * o){
+static unsigned int traverse_args(pTHX_ int my, int alias, unsigned int found_index, OP * o){
     if( o->op_type == OP_NULL ){
         if( o->op_flags & OPf_KIDS ){
             OP *kid;
             for(kid=cUNOPo->op_first; kid; kid=kid->op_sibling)
-                found_index = traverse_args(aTHX_ found_index, kid);
+                found_index = traverse_args(aTHX_ my, alias, found_index, kid);
         }
         return found_index;
     }
@@ -347,10 +325,10 @@ static unsigned int traverse_args(pTHX_ unsigned int found_index, OP * o){
     if( found_index==1 ){
         switch( o->op_type ){
            case OP_ANONLIST:
-                prepare_anonlist_node(aTHX_ o);
+                prepare_anonlist_node(aTHX_ o, my, alias);
                 break;
            case OP_ANONHASH:
-                prepare_anonhash_node(aTHX_ o);
+                prepare_anonhash_node(aTHX_ o, my, alias);
                 break;
             default:
                 croak("des arg must be exactly an anonymous list or anonymous hash");
@@ -374,12 +352,12 @@ static OP* my_pp_entersub(pTHX){
     RETURN;
 }
 
-static OP* p_check(pTHX_ OP* o, GV *namegv, SV *ckobj){
+static OP* des_check(pTHX_ OP* o, GV *namegv, SV *ckobj){
     if( o->op_flags & OPf_KIDS ){
         OP *kid;
         unsigned int found_index = 0;
         for(kid=cUNOPo->op_first; kid; kid=kid->op_sibling)
-            found_index = traverse_args(aTHX_ found_index, kid);
+            found_index = traverse_args(aTHX_ 0, 0, found_index, kid);
         o->op_ppaddr = my_pp_entersub;
     }
     return o;
@@ -390,7 +368,7 @@ MODULE = DestructAssign		PACKAGE = DestructAssign
 INCLUDE: const-xs.inc
 
 BOOT:
-    cv_set_call_checker(get_cv("DestructAssign::des", TRUE), p_check, &PL_sv_undef);
-    cv_set_call_checker(get_cv("DestructAssign::des_my", TRUE), p_check, &PL_sv_undef);
-    cv_set_call_checker(get_cv("DestructAssign::des_alias", TRUE), p_check, &PL_sv_undef);
-    cv_set_call_checker(get_cv("DestructAssign::des_my_alias", TRUE), p_check, &PL_sv_undef);
+    cv_set_call_checker(get_cv("DestructAssign::des", TRUE), des_check, &PL_sv_undef);
+    cv_set_call_checker(get_cv("DestructAssign::des_my", TRUE), des_check, &PL_sv_undef);
+    cv_set_call_checker(get_cv("DestructAssign::des_alias", TRUE), des_check, &PL_sv_undef);
+    cv_set_call_checker(get_cv("DestructAssign::des_my_alias", TRUE), des_check, &PL_sv_undef);
