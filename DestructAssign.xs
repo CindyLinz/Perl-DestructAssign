@@ -9,8 +9,11 @@
 
 //#define DEBUG
 
-static void prepare_anonlist_node(pTHX_ OP * o, int my, int alias);
-static void prepare_anonhash_node(pTHX_ OP * o, int my, int alias);
+#define OPT_MY 1
+#define OPT_ALIAS 2
+
+static void prepare_anonlist_node(pTHX_ OP * o, U32 opt);
+static void prepare_anonhash_node(pTHX_ OP * o, U32 opt);
 
 static int anonlist_set(pTHX_ SV * sv, MAGIC * mg){
     SV * src;
@@ -239,7 +242,7 @@ static OP * my_pp_anonhash(pTHX){
     RETURN;
 }
 
-static void prepare_anonlisthash_node(pTHX_ OP *o, int my, int alias){
+static void prepare_anonlisthash_node(pTHX_ OP *o, U32 opt){
     OP *kid;
     UV const_count = 0;
 
@@ -248,10 +251,10 @@ static void prepare_anonlisthash_node(pTHX_ OP *o, int my, int alias){
     for(kid=cLISTOPo->op_first->op_sibling; kid; kid=kid->op_sibling)
         switch( kid->op_type ){
             case OP_ANONLIST:
-                prepare_anonlist_node(aTHX_ kid, my, alias);
+                prepare_anonlist_node(aTHX_ kid, opt);
                 break;
             case OP_ANONHASH:
-                prepare_anonhash_node(aTHX_ kid, my, alias);
+                prepare_anonhash_node(aTHX_ kid, opt);
                 break;
             case OP_CONST:
             case OP_UNDEF:
@@ -295,28 +298,28 @@ static void prepare_anonlisthash_node(pTHX_ OP *o, int my, int alias){
     }
 }
 
-static void prepare_anonlist_node(pTHX_ OP * o, int my, int alias){
+static void prepare_anonlist_node(pTHX_ OP * o, U32 opt){
 #ifdef DEBUG
     printf("prepare anonlist node\n");
 #endif
-    prepare_anonlisthash_node(aTHX_ o, my, alias);
+    prepare_anonlisthash_node(aTHX_ o, opt);
     o->op_ppaddr = my_pp_anonlist;
 }
 
-static void prepare_anonhash_node(pTHX_ OP * o, int my, int alias){
+static void prepare_anonhash_node(pTHX_ OP * o, U32 opt){
 #ifdef DEBUG
     printf("prepare anonhash node\n");
 #endif
-    prepare_anonlisthash_node(aTHX_ o, my, alias);
+    prepare_anonlisthash_node(aTHX_ o, opt);
     o->op_ppaddr = my_pp_anonhash;
 }
 
-static unsigned int traverse_args(pTHX_ int my, int alias, unsigned int found_index, OP * o){
+static unsigned int traverse_args(pTHX_ U32 opt, unsigned int found_index, OP * o){
     if( o->op_type == OP_NULL ){
         if( o->op_flags & OPf_KIDS ){
             OP *kid;
             for(kid=cUNOPo->op_first; kid; kid=kid->op_sibling)
-                found_index = traverse_args(aTHX_ my, alias, found_index, kid);
+                found_index = traverse_args(aTHX_ opt, found_index, kid);
         }
         return found_index;
     }
@@ -325,10 +328,10 @@ static unsigned int traverse_args(pTHX_ int my, int alias, unsigned int found_in
     if( found_index==1 ){
         switch( o->op_type ){
            case OP_ANONLIST:
-                prepare_anonlist_node(aTHX_ o, my, alias);
+                prepare_anonlist_node(aTHX_ o, opt);
                 break;
            case OP_ANONHASH:
-                prepare_anonhash_node(aTHX_ o, my, alias);
+                prepare_anonhash_node(aTHX_ o, opt);
                 break;
             default:
                 croak("des arg must be exactly an anonymous list or anonymous hash");
@@ -357,7 +360,7 @@ static OP* des_check(pTHX_ OP* o, GV *namegv, SV *ckobj){
         OP *kid;
         unsigned int found_index = 0;
         for(kid=cUNOPo->op_first; kid; kid=kid->op_sibling)
-            found_index = traverse_args(aTHX_ 0, 0, found_index, kid);
+            found_index = traverse_args(aTHX_ 0, found_index, kid);
         o->op_ppaddr = my_pp_entersub;
     }
     return o;
