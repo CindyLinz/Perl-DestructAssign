@@ -4,9 +4,10 @@ use warnings;
 use lib qw(/home/cindy/perl5/lib/perl);
 use B::Deparse;
 
-use DestructAssign qw(des);
+use DestructAssign qw(des des_alias);
 use Carp;
 use Data::Dumper;
+$Data::Dumper::Indent = 0;
 $Carp::MaxArgLen = 0;
 $Carp::MaxArgNums = 0;
 
@@ -65,7 +66,6 @@ sub tt($) : lvalue {}
 # }
 
 sub f {
-    no warnings 'void';
     my($x, $z, $q, $g, @remain, %hv, $o);
     des [$x, $y, $z] = \@_;
     print "\$x=$x \$y=$y \$z=$z\n";
@@ -161,3 +161,13 @@ BEGIN {
 }
 
 f(qw(X Y Z));
+
+{
+    my($a, $b, $c);
+    my $data = [1, {x => [2,3,4], y => 6}, 3];
+    des_alias [$a, {y => $b, x => [2 => $c]}] = $data;
+    print '$data=', Dumper($data), $/;
+    print "\$a=$a, \$b=$b, \$c=$c\n";
+    ($a, $b, $c) = (4, 5, 6);
+    print '$data=', Dumper($data), $/;
+}
