@@ -1,4 +1,241 @@
-Perl-DestructAssign
-===================
+# NAME
 
-Destructuring assignment for Perl
+DestructAssign - Destructuring assignment
+
+# SYNOPSIS
+
+```perl
+    use DestructAssign qw(des des_alias);
+
+    my($w, $x, $y, $z);
+    des [$x, [undef, {y => $y}], $z] = [2, [25, {x => 'x', y => 3}, 26], 4];
+    # got ($w, $x, $y, $z) = (1, 2, 3, 4)
+    # (use undef as the skipping placeholder)
+
+    # put skip index in the list pattern
+    des [3 => $w, $x, -2 => $y, $z] = [1..9];
+    # got ($w, $x, $y, $z) = (4, 5, 8, 9)
+
+    # put @array or @hash in the list pattern to eat all the remaining element
+    my(@array, %hash);
+    des [3 => @array, -4 => %hash] = [1..8];
+    # got @array = (4..8), %hash = (5 => 6, 7 => 8)
+
+    # put the same index or hash key
+    #  when you need to capture different granularity on the same data structure
+    des {x => $x, x => [$y, $z]} = {x => [1, 2]};
+    # got $x = [1,2], $y = 1, $z = 2
+
+    # use the alias semantics
+    my $data = [1, 2, 3];
+    des_alias [undef, $x] = $data;
+    $x = 20;
+    # got $data = [1, 20, 3]
+```
+
+# DESCRIPTION
+
+This mod provides destructuring assignment for Perl.
+You can capture (by value) or bind (by alias) variables into
+part of a potentially large and complex data structure.
+
+I expect it to bring following benefits:
+
+- enhance the performance by avoiding repeatedly digging into complex data structures
+
+    Suppose we have data structures like this:
+
+```perl
+        my $player1 = {
+          id => 25,
+          hp => 8100,
+          armor => {
+            body => {
+              id => 21,
+              name => 'iron suit',
+              protect => 10,
+              durability => 100,
+            },
+            hand => {
+              id => 29,
+              name => 'iron sword',
+              attack => 15,
+              durability => 100,
+            },
+          },
+        };
+        my $player2 = ...;
+```
+
+    Instead of
+
+```perl
+        while( $player1->{hp}>0 && $player2->{hp}>0 ) {
+          my $hit1 =
+              ($player1->{armor}{hand}{durability} && $player1->{armor}{hand}{attack}) -
+              ($player2->{armor}{body}{durability} && $player2->{armor}{body}{protect});
+          my $hit2 =
+              ($player2->{armor}{hand}{durability} && $player2->{armor}{hand}{attack}) -
+              ($player1->{armor}{body}{durability} && $player1->{armor}{body}{protect});
+          $hit1 = 1 if( $hit1 <= 0 );
+          $hit2 = 1 if( $hit2 <= 0 );
+
+          $player1->{hp} -= $hit2;
+          $player2->{hp} -= $hit1;
+
+          --$player1->{armor}{hand}{durability} if( $player1->{armor}{hand}{durability} );
+          --$player1->{armor}{body}{durability} if( $player1->{armor}{body}{durability} );
+          --$player2->{armor}{hand}{durability} if( $player2->{armor}{hand}{durability} );
+          --$player2->{armor}{body}{durability} if( $player2->{armor}{body}{durability} );
+        }
+```
+
+    We could write
+
+```perl
+        des_alias [
+          {
+            hp => my $hp1,
+            armor => {
+              body => {
+                protect => my $protect1,
+                durability => my $body_dura1,
+              },
+              hand => {
+                attack => my $attack1,
+                durability => my $hand_dura1,
+              },
+            }
+          },
+          {
+            hp => my $hp2,
+            armor => {
+              body => {
+                protect => my $protect2,
+                durability => my $body_dura2,
+              },
+              hand => {
+                attack => my $attack2,
+                durability => my $hand_dura2,
+              },
+            }
+          },
+        ] = [$data1, $data2];
+        
+        while( hp1>0 && hp2>0 ) {
+          my $hit1 = ($hand_dura1 && $attack1) - ($body_dura2 && $protect2);
+          my $hit2 = ($hand_dura2 && $attack2) - ($body_dura1 && $protect1);
+          $hit1 = 1 if( $hit1 <= 0 );
+          $hit2 = 1 if( $hit2 <= 0 );
+
+          $hp1 -= $hit2;
+          $hp2 -= $hit1;
+
+          --$hand_dura1 if( $hand_dura1 );
+          --$body_dura1 if( $body_dura1 );
+          --$hand_dura2 if( $hand_dura2 );
+          --$body_dura2 if( $body_dura2 );
+        }
+```
+
+- enhance the readability by pointing out all the elements you might touch at the begining of each subroutine
+
+    It's a good habit to write named parameters instead of access @\_ directly
+    (except you want to modify the caller's arguments).
+    This mod extend the ability to name parameters in the deep structure.
+    You can explicitly list all the elements you might touch in the subroutine.
+
+```perl
+        sub f {
+          des [my $x, { id => my $id, amount => my $amount }] = \@_;
+          # or use des_alias, if you need to modify the passed parameters.
+          des_alias [my $x, { id => my $id, amount => my $amount }] = \@_;
+        }
+```
+
+## EXPORT
+
+None by default.
+
+- des pattern = $value
+
+    The value semantics of destructuring assignment.
+
+    The captured data elements are copied out to the variables.
+
+- des\_alias pattern = $value
+
+    The alias semantics of destructuring assignment
+
+    The captured data elements are bound to the variables.
+    After the binding, write to or read from the variables will
+    affect the bound data.
+
+## PATTERN
+
+The only argument to `des` or `des_alias` should be
+an anonymous list \[..\] or anonymous hash {..}.
+
+The elements of them could be
+
+- anonymous list \[..\]
+
+    To match a list reference
+
+- anonymous hash {..}
+
+    To match a hash reference
+
+- scalar variable $xx
+
+    To capture the data element
+
+- array variable @xx
+
+    This can be used only in an anonymous list, not hash.
+
+    To capture all the remaining data element of the current array
+    from current offset.
+
+    When using in alias semantics, each element of the array variable will
+    be bound to data element individually.
+
+- hash variable %xx
+
+    This can be used only in an anonymous list, not hash.
+
+    To capture all the remaining data element of the current array
+    from current offset.
+
+    When using in alias semantics, only the values of the hash variable
+    will be bound to data element, individually.
+
+- constant undef
+
+    When using in an anonymous list, it is used as a skipping placeholder.
+
+    When using in an anonymous hash, it is used to set the next capturing key to ''.
+
+- constant string or number
+
+    When using in an anonymous list, we'll take it as a numer to set
+    the next capturing offset.
+
+    When using in an anonymous hash, we'll take it as a string to set
+    the next capturing key.
+
+# SEE ALSO
+
+[https://github.com/CindyLinz/Perl-DestructAssign](https://github.com/CindyLinz/Perl-DestructAssign)
+
+# AUTHOR
+
+Cindy Wang (CindyLinz)
+
+# COPYRIGHT AND LICENSE
+
+Copyright (C) 2014 by Cindy Wang (CindyLinz)
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself, either Perl version 5.18.2 or,
+at your option, any later version of Perl 5 you may have available.
