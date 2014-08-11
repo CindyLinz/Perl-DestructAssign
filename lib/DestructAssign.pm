@@ -51,7 +51,7 @@ DestructAssign - Destructuring assignment
   use DestructAssign qw(des des_alias);
 
   my($w, $x, $y, $z);
-  des [$x, [undef, {y => $y}], $z] = [2, [25, {x => 'x', y => 3}, 26], 4];
+  des [$x, [undef, {y => $y}, undef, $w], $z] = [2, [25, {x => 'x', y => 3}, 26, 1], 4];
   # got ($w, $x, $y, $z) = (1, 2, 3, 4)
   # (use undef as the skipping placeholder)
 
