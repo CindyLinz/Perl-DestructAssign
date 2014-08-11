@@ -45,7 +45,7 @@ I expect it to bring following benefits:
 
     Suppose we have data structures like this:
 
-```perl
+    ```perl
         my $player1 = {
           id => 25,
           hp => 8100,
@@ -65,11 +65,11 @@ I expect it to bring following benefits:
           },
         };
         my $player2 = ...;
-```
+    ```
 
     Instead of
 
-```perl
+    ```perl
         while( $player1->{hp}>0 && $player2->{hp}>0 ) {
           my $hit1 =
               ($player1->{armor}{hand}{durability} && $player1->{armor}{hand}{attack}) -
@@ -88,11 +88,11 @@ I expect it to bring following benefits:
           --$player2->{armor}{hand}{durability} if( $player2->{armor}{hand}{durability} );
           --$player2->{armor}{body}{durability} if( $player2->{armor}{body}{durability} );
         }
-```
+    ```
 
     We could write
 
-```perl
+    ```perl
         des_alias [
           {
             hp => my $hp1,
@@ -136,7 +136,7 @@ I expect it to bring following benefits:
           --$hand_dura2 if( $hand_dura2 );
           --$body_dura2 if( $body_dura2 );
         }
-```
+    ```
 
 - enhance the readability by pointing out all the elements you might touch at the begining of each subroutine
 
@@ -145,13 +145,13 @@ I expect it to bring following benefits:
     This mod extend the ability to name parameters in the deep structure.
     You can explicitly list all the elements you might touch in the subroutine.
 
-```perl
+    ```perl
         sub f {
           des [my $x, { id => my $id, amount => my $amount }] = \@_;
           # or use des_alias, if you need to modify the passed parameters.
           des_alias [my $x, { id => my $id, amount => my $amount }] = \@_;
         }
-```
+    ```
 
 ## EXPORT
 
