@@ -31,6 +31,12 @@ DestructAssign - Destructuring assignment
     des_alias [undef, $x] = $data;
     $x = 20;
     # got $data = [1, 20, 3]
+
+    {
+      # mixed with lexical variable introduction
+      des [my($i, $j), { k => my $k }] = [1, 2, {k => 3}];
+      # got my($i, $j, $k) = (1, 2, 3)
+    }
 ```
 
 # DESCRIPTION
@@ -226,7 +232,15 @@ The elements of them could be
 
 # SEE ALSO
 
-[https://github.com/CindyLinz/Perl-DestructAssign](https://github.com/CindyLinz/Perl-DestructAssign)
+This mod's github [https://github.com/CindyLinz/Perl-DestructAssign](https://github.com/CindyLinz/Perl-DestructAssign).
+It's welcome to discuss with me when you encounter bugs, or
+if you think that some patterns are also useful but the mod didn't provide them yet.
+
+I also found a similar mod on github. (no cpan page) [https://github.com/hirokidaichi/p5-Data-Destructuring-Assignment](https://github.com/hirokidaichi/p5-Data-Destructuring-Assignment)
+It's implemented in pure Perl with tied structures.
+Because it's pure Perl, we need to pass references directly on the left hand side.
+It can't take advantage on hash pattern with duplicated keys.
+It didn't provide alias semantics either, though it could be added easily if needed.
 
 # AUTHOR
 
