@@ -8,6 +8,11 @@
 #include "const-c.inc"
 
 //#define DEBUG
+#define PERL_VERSION_DECIMAL(r,v,s) (r*1000000 + v*1000 + s)
+#define PERL_DECIMAL_VERSION \
+  PERL_VERSION_DECIMAL(PERL_REVISION,PERL_VERSION,PERL_SUBVERSION)
+#define PERL_VERSION_GE(r,v,s) \
+  (PERL_DECIMAL_VERSION >= PERL_VERSION_DECIMAL(r,v,s))
 
 #define OPT_MY 1
 #define OPT_ALIAS 2
@@ -73,7 +78,7 @@ static int anonlist_set_common(pTHX_ SV * sv, MAGIC * mg, U32 opt){
             switch( SvTYPE(*list_holder) ){
                 case SVt_PVAV:
                     {
-                        AV *dst = MUTABLE_AV(*list_holder);
+                        AV *dst = (AV*)(*list_holder);
                         int magic = SvMAGICAL(dst) != 0;
                         I32 last_key = key < 0 ? -1 : AvFILL((AV*)src);
                         I32 i;
@@ -110,14 +115,16 @@ static int anonlist_set_common(pTHX_ SV * sv, MAGIC * mg, U32 opt){
                             ++i;
                             ++key;
                         }
+#if PERL_VERSION_GE(5,14,0)
                         if( PL_delaymagic & DM_ARRAY_ISA )
                             SvSETMAGIC(*list_holder);
+#endif
                         LEAVE;
                     }
                     break;
                 case SVt_PVHV:
                     {
-                        HV *dst = MUTABLE_HV(*list_holder);
+                        HV *dst = (HV*)(*list_holder);
                         int magic = SvMAGICAL(dst) != 0;
                         I32 last_key = key < 0 ? -1 : AvFILL((AV*)src);
                         I32 i;
@@ -459,12 +466,50 @@ static OP* des_alias_check(pTHX_ OP* o, GV *namegv, SV *ckobj){
     return o;
 }
 
+#if !PERL_VERSION_GE(5,14,0)
+static CV* my_des_cvs[2];
+static OP* (*orig_entersub_check)(pTHX_ OP*);
+static OP* my_entersub_check(pTHX_ OP* o){
+    CV *cv;
+    OP *cvop = ((cUNOPo->op_first->op_sibling) ? cUNOPo : ((UNOP*)cUNOPo->op_first))->op_first->op_sibling;
+    while( cvop->op_sibling )
+        cvop = cvop->op_sibling;
+    if( cvop->op_type == OP_RV2CV && !(o->op_private & OPpENTERSUB_AMPER) ){
+        SVOP *tmpop = (SVOP*)((UNOP*)cvop)->op_first;
+        GV *gv = NULL;
+        switch (tmpop->op_type) {
+            case OP_GV: {
+                gv = cGVOPx_gv(tmpop);
+                cv = GvCVu(gv);
+                if (!cv)
+                    tmpop->op_private |= OPpEARLY_CV;
+            } break;
+            case OP_CONST: {
+                SV *sv = cSVOPx_sv(tmpop);
+                if (SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVCV)
+                    cv = (CV*)SvRV(sv);
+            } break;
+        }
+        if( cv==my_des_cvs[0] )
+            return des_check(aTHX_ o, NULL, NULL);
+        if( cv==my_des_cvs[1] )
+            return des_alias_check(aTHX_ o, NULL, NULL);
+    }
+    return orig_entersub_check(aTHX_ o);
+}
+#endif
+
 MODULE = DestructAssign		PACKAGE = DestructAssign		
 
 INCLUDE: const-xs.inc
 
 BOOT:
+#if PERL_VERSION_GE(5,14,0)
     cv_set_call_checker(get_cv("DestructAssign::des", TRUE), des_check, &PL_sv_undef);
-    cv_set_call_checker(get_cv("DestructAssign::des_my", TRUE), des_check, &PL_sv_undef);
     cv_set_call_checker(get_cv("DestructAssign::des_alias", TRUE), des_alias_check, &PL_sv_undef);
-    cv_set_call_checker(get_cv("DestructAssign::des_my_alias", TRUE), des_alias_check, &PL_sv_undef);
+#else
+    my_des_cvs[0] = get_cv("DestructAssign::des", TRUE);
+    my_des_cvs[1] = get_cv("DestructAssign::des_alias", TRUE);
+    orig_entersub_check = PL_check[OP_ENTERSUB];
+    PL_check[OP_ENTERSUB] = my_entersub_check;
+#endif
