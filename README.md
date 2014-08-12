@@ -23,6 +23,7 @@ DestructAssign - Destructuring assignment
 
     # put the same index or hash key
     #  when you need to capture different granularity on the same data structure
+    #  (notice that you can use duplicated keys in the hash pattern)
     des {x => $x, x => [$y, $z]} = {x => [1, 2]};
     # got $x = [1,2], $y = 1, $z = 2
 
@@ -159,6 +160,8 @@ I expect it to bring following benefits:
         }
     ```
 
+I've tested this mod in Perl 5.8.9, 5.10.1, 5.12.5, 5.14.4, 5.16.3, 5.18.2, 5.20.0 (by perlbrew) on x86\_64.
+
 ## EXPORT
 
 None by default.
@@ -176,6 +179,28 @@ None by default.
     The captured data elements are bound to the variables.
     After the binding, write to or read from the variables will
     affect the bound data.
+
+    Be careful that once you bind a variable to a data element,
+    there's no easy way to unbind it.
+    It's recommended to use brand new lexical variables or localized variables to do it.
+
+    Like this..
+    ```perl
+        # some variables outside..
+        my $a = 123;
+        our $y = 456;
+
+        my $data = [1, 2]; # the target data
+        {
+            des_alias [my $a, local $y] = $data;
+            $a = 5; $y = 6;
+            # $data = [5, 6];
+        }
+        # back to original, unbound $a and $y.
+        $a = 7;
+        $y = 8;
+        # $data = [5, 6]; # the $data will not be changed.
+    ```
 
 ## PATTERN
 
