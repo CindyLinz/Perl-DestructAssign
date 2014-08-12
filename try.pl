@@ -1,7 +1,6 @@
 use strict;
 use warnings;
 
-use lib qw(/home/cindy/perl5/lib/perl);
 use B::Deparse;
 
 use DestructAssign qw(des des_alias);
@@ -174,4 +173,19 @@ f(qw(X Y Z));
 {
     des [my($a, $b), {a => my $c}] = [1,2,{a => 3}];
     print "$a $b $c\n";
+}
+
+{
+    my $data = [1,2];
+    my $a = 5;
+    print "$a $data->[0]\n";
+    {
+        des_alias [my $a] = $data;
+        print "$a $data->[0]\n";
+        $a =20;
+        print "$a $data->[0]\n";
+    }
+    print "$a $data->[0]\n";
+    $a = 6;
+    print "$a $data->[0]\n";
 }
