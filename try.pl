@@ -66,8 +66,8 @@ sub tt($) : lvalue {}
 # }
 
 sub f {
-    my($x, $z, $q, $g, @remain, %hv, $o);
-    des [$x, $y, $z] = \@_;
+    my($q, $g, @remain, %hv, $o);
+    des [my $x, $y, my $z] = \@_;
     print "\$x=$x \$y=$y \$z=$z\n";
     des [undef, $x, -2 => $z, [$y]] = [3, 4, 5, [6], 8, [7]];
     print "\$x=$x \$y=$y \$z=$z\n";
@@ -163,9 +163,8 @@ BEGIN {
 f(qw(X Y Z));
 
 {
-    my($a, $b, $c);
     my $data = [1, {x => [2,3,4], y => 6}, 3];
-    des_alias [$a, {y => $b, x => [2 => $c]}] = $data;
+    des_alias [my $a, {y => my $b, x => [2 => my $c]}] = $data;
     print '$data=', Dumper($data), $/;
     print "\$a=$a, \$b=$b, \$c=$c\n";
     ($a, $b, $c) = (4, 5, 6);
@@ -173,28 +172,6 @@ f(qw(X Y Z));
 }
 
 {
-  my($w, $x, $y, $z);
-  DestructAssign::des [$x, [undef, {y => $y}], $z] = [2, [25, {x => 'x', y => 3}, 26], 4];
-  # got ($w, $x, $y, $z) = (1, 2, 3, 4)
-  # (use undef as the skipping placeholder)
-
-  # put skip index in the list pattern
-  DestructAssign::des [3 => $w, $x, -2 => $y, $z] = [1..9];
-  # got ($w, $x, $y, $z) = (4, 5, 8, 9)
-
-  # put @array or @hash in the list pattern to eat all the remaining element
-  my(@array, %hash);
-  DestructAssign::des [3 => @array, -4 => %hash] = [1..8];
-  # got @array = (4..8), %hash = (5 => 6, 7 => 8)
-
-  # put the same index or hash key
-  #  when you need to capture different granularity on the same data structure
-  DestructAssign::des {x => $x, x => [$y, $z]} = {x => [1, 2]};
-  # got $x = [1,2], $y = 1, $z = 2
-
-  # use the alias semantics
-  my $data = [1, 2, 3];
-  DestructAssign::des_alias [undef, $x] = $data;
-  $x = 20;
-  # got $data = [1, 20, 3]
+    des [my($a, $b), {a => my $c}] = [1,2,{a => 3}];
+    print "$a $b $c\n";
 }

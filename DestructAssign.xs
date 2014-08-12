@@ -299,26 +299,26 @@ MY_HANDLER_GEN(hash);
 MY_HANDLER_GEN(list_alias);
 MY_HANDLER_GEN(hash_alias);
 
-static void prepare_anonlisthash_node(pTHX_ OP *o, U32 opt){
+static void prepare_anonlisthash_list1(pTHX_ OP *o, U32 opt, UV *const_count, UV *pattern_count){
     OP *kid;
-    UV const_count = 0;
-    UV pattern_count = 0;
-
     if( cLISTOPo->op_first->op_type!=OP_PUSHMARK )
         croak("invalid des pattern");
     for(kid=cLISTOPo->op_first->op_sibling; kid; kid=kid->op_sibling)
         switch( kid->op_type ){
+            case OP_LIST:
+                prepare_anonlisthash_list1(aTHX_ kid, opt, const_count, pattern_count);
+                break;
             case OP_ANONLIST:
-                ++pattern_count;
+                ++*pattern_count;
                 prepare_anonlist_node(aTHX_ kid, opt);
                 break;
             case OP_ANONHASH:
-                ++pattern_count;
+                ++*pattern_count;
                 prepare_anonhash_node(aTHX_ kid, opt);
                 break;
             case OP_CONST:
             case OP_UNDEF:
-                ++const_count;
+                ++*const_count;
                 break;
             case OP_PADAV:
             case OP_PADHV:
@@ -332,6 +332,27 @@ static void prepare_anonlisthash_node(pTHX_ OP *o, U32 opt){
             default:
                 croak("invalid des pattern (can't contain %s)", OP_NAME(kid));
         }
+}
+static void prepare_anonlisthash_list2(pTHX_ OP *o, U32 opt, I32 *const_index_buffer, I32 *p, I32 *q){
+    OP *kid;
+    for(kid=cLISTOPo->op_first->op_sibling; kid; kid=kid->op_sibling){
+        if( kid->op_type == OP_LIST ){
+            prepare_anonlisthash_list2(aTHX_ kid, opt, const_index_buffer, p, q);
+            continue;
+        }
+        if( kid->op_type == OP_CONST || kid->op_type == OP_UNDEF )
+            const_index_buffer[(*p)++] = *q;
+        else if( kid->op_type == OP_ANONLIST || kid->op_type == OP_ANONHASH )
+            const_index_buffer[(*p)++] = -*q;
+        ++*q;
+    }
+}
+static void prepare_anonlisthash_node(pTHX_ OP *o, U32 opt){
+    OP *kid;
+    UV const_count = 0;
+    UV pattern_count = 0;
+
+    prepare_anonlisthash_list1(aTHX_ o, opt, &const_count, &pattern_count);
 
     if( UNLIKELY(o->op_targ) ) // for safe.. it should be always 0
         Perl_pad_free(aTHX_ o->op_targ);
@@ -348,13 +369,7 @@ static void prepare_anonlisthash_node(pTHX_ OP *o, U32 opt){
         buffer[(const_count+pattern_count+1)*sizeof(I32)] = '\0';
         const_index_buffer = (I32*)SvPV_nolen(TARG);
 
-        for(kid=cLISTOPo->op_first->op_sibling; kid; kid=kid->op_sibling){
-            if( kid->op_type == OP_CONST || kid->op_type == OP_UNDEF )
-                const_index_buffer[p++] = q;
-            else if( kid->op_type == OP_ANONLIST || kid->op_type == OP_ANONHASH )
-                const_index_buffer[p++] = -q;
-            ++q;
-        }
+        prepare_anonlisthash_list2(aTHX_ o, opt, const_index_buffer, &p, &q);
         const_index_buffer[p] = q;
     }
 }
