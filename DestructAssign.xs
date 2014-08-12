@@ -75,7 +75,7 @@ static int anonlist_set_common(pTHX_ SV * sv, MAGIC * mg, U32 opt){
                     {
                         AV *dst = MUTABLE_AV(*list_holder);
                         int magic = SvMAGICAL(dst) != 0;
-                        I32 last_key = key < 0 ? -1 : av_top_index((AV*)src);
+                        I32 last_key = key < 0 ? -1 : AvFILL((AV*)src);
                         I32 i;
                         SV * sv;
 
@@ -119,7 +119,7 @@ static int anonlist_set_common(pTHX_ SV * sv, MAGIC * mg, U32 opt){
                     {
                         HV *dst = MUTABLE_HV(*list_holder);
                         int magic = SvMAGICAL(dst) != 0;
-                        I32 last_key = key < 0 ? -1 : av_top_index((AV*)src);
+                        I32 last_key = key < 0 ? -1 : AvFILL((AV*)src);
                         I32 i;
                         SV * sv;
 
