@@ -356,7 +356,7 @@ static void prepare_anonlisthash_node(pTHX_ OP *o, U32 opt){
 
     if( UNLIKELY(o->op_targ) ) // for safe.. it should be always 0
         Perl_pad_free(aTHX_ o->op_targ);
-    o->op_targ = pad_alloc(o->op_type, SVs_PADTMP);
+    o->op_targ = Perl_pad_alloc(aTHX_ o->op_type, SVs_PADTMP);
     {
         dTARG;
         I32 * const_index_buffer;

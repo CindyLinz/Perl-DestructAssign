@@ -29,8 +29,8 @@ our @EXPORT = qw(
 
 our $VERSION = '0.01';
 
-sub des($) : lvalue { ... }
-sub des_alias($) : lvalue { ... }
+sub des($) : lvalue { $_[0] }
+sub des_alias($) : lvalue { $_[0] }
 
 require XSLoader;
 XSLoader::load('DestructAssign', $VERSION);
