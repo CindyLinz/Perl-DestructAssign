@@ -394,7 +394,7 @@ static unsigned int traverse_args(pTHX_ U32 opt, unsigned int found_index, OP * 
            case OP_ANONHASH:
                 prepare_anonhash_node(aTHX_ o, opt);
                 break;
-            default:
+           default:
                 croak("des arg must be exactly an anonymous list or anonymous hash");
         }
     }
