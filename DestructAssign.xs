@@ -14,6 +14,13 @@
 #define PERL_VERSION_GE(r,v,s) \
   (PERL_DECIMAL_VERSION >= PERL_VERSION_DECIMAL(r,v,s))
 
+#ifndef UNLIKELY
+#  define UNLIKELY(x) (x)
+#endif
+#ifndef LIKELY
+#  define LIKELY(x) (x)
+#endif
+
 #define OPT_MY 1
 #define OPT_ALIAS 2
 
