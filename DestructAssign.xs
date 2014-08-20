@@ -79,7 +79,10 @@ static inline int anonlist_set_common(pTHX_ SV * sv, MAGIC * mg, U32 opt){
     I32 nitems = (mg->mg_len - sizeof(I32*)) / sizeof(SV*);
 
 #ifdef DEBUG
-    printf("anonlist_set opt=%u\n", (unsigned int)opt);
+    printf("anonlist_set opt=%u, nitems=%d\nconst_index =", (unsigned int)opt, (int)nitems);
+    for(i=0; i<nitems; ++i)
+        printf(" %d", const_index[i]);
+    puts("");
 #endif
 
     if( !SvROK(sv) ){
@@ -122,7 +125,7 @@ static inline int anonlist_set_common(pTHX_ SV * sv, MAGIC * mg, U32 opt){
                             SV * new_sv;
                             SV ** didstore;
                             new_sv = newSV(0);
-                            my_sv_set(aTHX_ &new_sv, ptr_val, i != -*const_index && opt & OPT_ALIAS);
+                            my_sv_set(aTHX_ &new_sv, ptr_val, i != -*const_index-1 && opt & OPT_ALIAS);
                             didstore = av_store(dst, i, new_sv);
                             if( magic ){
                                 if( !didstore )
@@ -167,7 +170,7 @@ static inline int anonlist_set_common(pTHX_ SV * sv, MAGIC * mg, U32 opt){
                             else
                                 new_key = newSV(0);
                             new_val = newSV(0);
-                            my_sv_set(aTHX_ &new_val, ptr_val, i != -*const_index && opt & OPT_ALIAS);
+                            my_sv_set(aTHX_ &new_val, ptr_val, i != -*const_index-1 && opt & OPT_ALIAS);
                             didstore = hv_store_ent(dst, new_key, new_val, 0);
                             if( magic ){
                                 if( !didstore )
@@ -182,10 +185,10 @@ static inline int anonlist_set_common(pTHX_ SV * sv, MAGIC * mg, U32 opt){
                 default:
                     {
                         SV ** ptr_val = av_fetch((AV*)src, key, 0);
-                        my_sv_set(aTHX_ list_holder, ptr_val, (i != -*const_index && opt & OPT_ALIAS));
+                        my_sv_set(aTHX_ list_holder, ptr_val, (i != -*const_index-1 && opt & OPT_ALIAS));
                     }
             }
-            if( i == -*const_index )
+            if( i == -*const_index-1 )
                 ++const_index;
             ++key;
         }
@@ -230,8 +233,8 @@ static inline int anonhash_set_common(pTHX_ SV * sv, MAGIC * mg, U32 opt){
         }
         else{
             SV ** ptr_val = hv_fetch((HV*)src, key, keylen, 0);
-            my_sv_set(aTHX_ list_holder, ptr_val, (i != -*const_index && opt & OPT_ALIAS));
-            if( i == -*const_index )
+            my_sv_set(aTHX_ list_holder, ptr_val, (i != -*const_index-1 && opt & OPT_ALIAS));
+            if( i == -*const_index-1 )
                 ++const_index;
         }
     }
@@ -322,7 +325,7 @@ static void prepare_anonlisthash_list2(pTHX_ OP *o, U32 opt, I32 *const_index_bu
         if( kid->op_type == OP_CONST || kid->op_type == OP_UNDEF )
             const_index_buffer[(*p)++] = *q;
         else if( kid->op_type == OP_ANONLIST || kid->op_type == OP_ANONHASH )
-            const_index_buffer[(*p)++] = -*q;
+            const_index_buffer[(*p)++] = -*q-1;
         ++*q;
     }
 }

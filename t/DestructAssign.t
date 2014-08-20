@@ -8,7 +8,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 24;
+use Test::More tests => 25;
 BEGIN { use_ok('DestructAssign') };
 
 #########################
@@ -93,4 +93,11 @@ BEGIN { use_ok('DestructAssign') };
     is($data->[0], 7, 'data change by b');
     is($a, 7, 'a change by b');
     is($b, 7, 'b change by b');
+}
+
+# to fix bug
+{
+    my $a;
+    DestructAssign::des [[$a]] = [[1]];
+    is($a, 1, 'bug fix');
 }

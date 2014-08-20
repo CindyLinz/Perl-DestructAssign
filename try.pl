@@ -189,3 +189,9 @@ f(qw(X Y Z));
     $a = 6;
     print "$a $data->[0]\n";
 }
+
+{
+    my $a;
+    des [[$a]] = [[1]];
+    print "$a\n";
+}

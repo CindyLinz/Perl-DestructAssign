@@ -1,6 +1,9 @@
 Revision history for Perl extension DestructAssign.
 
-0.01  Tue Aug  5 15:11:47 2014
+0.1.2 Fix bug when the first element of an anonlist or an anonhash pattern
+      is a pattern.
+
+0.1  Tue Aug  5 15:11:47 2014
 	- original version; created by h2xs 1.23 with options
 		-n DestructAssign
 
