@@ -195,3 +195,42 @@ f(qw(X Y Z));
     des [[$a]] = [[1]];
     print "$a\n";
 }
+
+{
+    my %hash = (a => 1, b => 2);
+    my @array = ('a','b','c');
+
+    use constant {
+        A => 'a',
+        B => 'b',
+        ONE => 1,
+        TWO => 2,
+    };
+    des{ A, my $a, B, my $b } = \%hash;
+    des[ ONE, my $c, TWO, my $d ] = \@array;
+    print "$a,$b,$c,$d\n";
+}
+use constant {
+    O => 5,
+};
+
+{
+    my $f = sub {
+        my($acceptor) = @_;
+        #$acceptor->{a} = 123;
+        $_[0]{a} = 123;
+    };
+    $f->(des { a => my $a, b => my $b });
+    print "a=$a, b=$b\n";
+}
+
+sub g {
+    my $h = des { a => my $a, b => my $b } = { a => 1, b => 2 };
+    print Dumper($h),$/;
+
+    if( $_[0]>0 ) {
+        g($_[0]-1);
+    }
+}
+
+g(3);

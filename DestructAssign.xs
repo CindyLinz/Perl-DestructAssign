@@ -80,9 +80,9 @@ static inline int anonlist_set_common(pTHX_ SV * sv, MAGIC * mg, U32 opt){
 
 #ifdef DEBUG
     printf("anonlist_set opt=%u, nitems=%d\nconst_index =", (unsigned int)opt, (int)nitems);
-    for(i=0; i<nitems; ++i)
+    for(i=0; const_index[i]<nitems; ++i)
         printf(" %d", const_index[i]);
-    puts("");
+    printf(" %d\n", nitems);
 #endif
 
     if( !SvROK(sv) ){
@@ -257,7 +257,7 @@ static int anonhash_set(pTHX_ SV * sv, MAGIC * mg){
     }; \
  \
     static OP * my_pp_anon ## type (pTHX){ \
-        dVAR; dSP; dMARK; dTARGET; \
+        dVAR; dSP; dMARK; \
         SV ** body; \
         int nitems = SP-MARK; \
         SV * ret; \
@@ -265,7 +265,7 @@ static int anonhash_set(pTHX_ SV * sv, MAGIC * mg){
         char * list_holder = alloca(holder_size); \
  \
         Copy(MARK+1, list_holder + sizeof(I32*), nitems, SV*); \
-        *(I32**)list_holder = (I32*)SvPV_nolen(TARG); \
+        *(I32**)list_holder = (I32*)SvPVX(cSVOPx_sv(PL_op->op_sibling)); \
  \
         SP = MARK+1; \
  \
@@ -293,10 +293,12 @@ static void prepare_anonlisthash_list1(pTHX_ OP *o, U32 opt, UV *const_count, UV
             case OP_ANONLIST:
                 ++*pattern_count;
                 prepare_anonlist_node(aTHX_ kid, opt);
+                kid = kid->op_sibling; /* skip pattern structure op node */
                 break;
             case OP_ANONHASH:
                 ++*pattern_count;
                 prepare_anonhash_node(aTHX_ kid, opt);
+                kid = kid->op_sibling; /* skip pattern structure op node */
                 break;
             case OP_CONST:
             case OP_UNDEF:
@@ -324,8 +326,10 @@ static void prepare_anonlisthash_list2(pTHX_ OP *o, U32 opt, I32 *const_index_bu
         }
         if( kid->op_type == OP_CONST || kid->op_type == OP_UNDEF )
             const_index_buffer[(*p)++] = *q;
-        else if( kid->op_type == OP_ANONLIST || kid->op_type == OP_ANONHASH )
+        else if( kid->op_type == OP_ANONLIST || kid->op_type == OP_ANONHASH ){
             const_index_buffer[(*p)++] = -*q-1;
+            kid = kid->op_sibling;
+        }
         ++*q;
     }
 }
@@ -336,23 +340,35 @@ static void prepare_anonlisthash_node(pTHX_ OP *o, U32 opt){
 
     prepare_anonlisthash_list1(aTHX_ o, opt, &const_count, &pattern_count);
 
-    if( UNLIKELY(o->op_targ) ) // for safe.. it should be always 0
-        Perl_pad_free(aTHX_ o->op_targ);
-    o->op_targ = Perl_pad_alloc(aTHX_ o->op_type, SVs_PADTMP);
     {
-        dTARG;
         I32 * const_index_buffer;
-        char *buffer;
-        STRLEN len;
+        OP *buffer_op;
+        SV *buffer_sv;
         I32 p = 0, q = 0;
-        TARG = PAD_SV(o->op_targ);
-        sv_grow(TARG, (const_count+pattern_count+1) * sizeof(I32) + 1);
-        buffer = SvPV_force(TARG, len);
-        buffer[(const_count+pattern_count+1)*sizeof(I32)] = '\0';
-        const_index_buffer = (I32*)SvPV_nolen(TARG);
+        I32 buffer_len = (const_count+pattern_count+1) * sizeof(I32);
+        #ifdef DEBUG
+        I32 i;
+        #endif
+
+        buffer_sv = newSV(buffer_len+1);
+        *(SvPVX(buffer_sv)+buffer_len) = '\0';
+
+        const_index_buffer = (I32*)SvPVX(buffer_sv);
 
         prepare_anonlisthash_list2(aTHX_ o, opt, const_index_buffer, &p, &q);
         const_index_buffer[p] = q;
+
+        #ifdef DEBUG
+        printf("const_index:");
+        for(i=0; i<=p; ++i)
+            printf(" %d", const_index_buffer[i]);
+        puts("");
+        #endif
+
+        buffer_op = newSVOP(OP_NULL, 0, buffer_sv);
+        buffer_op->op_targ = OP_CONST;
+        buffer_op->op_sibling = o->op_sibling;
+        o->op_sibling = buffer_op;
     }
 }
 
@@ -401,7 +417,7 @@ static unsigned int traverse_args(pTHX_ U32 opt, unsigned int found_index, OP * 
                 croak("des arg must be exactly an anonymous list or anonymous hash");
         }
     }
-    else if( found_index==3 ){
+    else if( found_index==4 ){
         croak("des arg must be exactly an anonymous list or anonymous hash");
     }
 
