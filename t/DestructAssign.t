@@ -8,7 +8,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 25;
+use Test::More tests => 28;
 BEGIN { use_ok('DestructAssign') };
 
 #########################
@@ -100,4 +100,15 @@ BEGIN { use_ok('DestructAssign') };
     my $a;
     DestructAssign::des [[$a]] = [[1]];
     is($a, 1, 'bug fix');
+}
+
+# to fix recursive sub bug
+{
+    my $f; $f = sub {
+        DestructAssign::des {a => my $a} = {a => $_[0]};
+        is($a, $_[0], 'fix recur bug');
+        $f->($_[0]-1) if( $_[0] );
+    };
+    $f->(2);
+    undef $f;
 }
