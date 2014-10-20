@@ -1,5 +1,7 @@
 Revision history for Perl extension DestructAssign.
 
+0.1.3 Fix bug when use pattern in a recursive sub
+
 0.1.2 Fix bug when the first element of an anonlist or an anonhash pattern
       is a pattern.
 

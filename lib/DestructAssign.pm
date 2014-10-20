@@ -27,7 +27,7 @@ our @EXPORT = qw(
 	
 );
 
-our $VERSION = '0.001002';
+our $VERSION = '0.001003';
 
 sub des($) : lvalue { $_[0] }
 sub des_alias($) : lvalue { $_[0] }
