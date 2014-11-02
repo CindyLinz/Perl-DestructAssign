@@ -210,9 +210,13 @@ static inline int anonhash_set_common(pTHX_ SV * sv, MAGIC * mg, U32 opt){
     }
 
     src = SvRV(sv);
-    if( SvTYPE(src)!=SVt_PVHV ){
-        warn("assign non hash ref value to a hash pattern");
-        return 0;
+    switch( SvTYPE(src) ){
+        case SVt_PVHV:
+        case SVt_PVAV:
+            break;
+        default:
+            warn("assign non hash ref value to a hash pattern");
+            return 0;
     }
 
     for(I32 i=0; i<nitems; ++i, ++list_holder){
@@ -221,8 +225,44 @@ static inline int anonhash_set_common(pTHX_ SV * sv, MAGIC * mg, U32 opt){
             ++const_index;
         }
         else{
-            SV ** ptr_val = hv_fetch((HV*)src, key, keylen, 0);
-            my_sv_set(aTHX_ list_holder, ptr_val, (i != -*const_index-1 && opt & OPT_ALIAS));
+            if( SvTYPE(src)==SVt_PVHV ){
+                SV ** ptr_val = hv_fetch((HV*)src, key, keylen, 0);
+                my_sv_set(aTHX_ list_holder, ptr_val, (i != -*const_index-1 && opt & OPT_ALIAS));
+            }
+            else{ /* SvTYPE(src)==SVt_PVAV */
+                I32 j = AvFILL((AV*)src);
+                if( j>=0 )
+                    if( j & 1 )
+                        --j;
+                    else
+                        warn("assign an array with odd number of elements to a hash pattern");
+
+                while( j>=0 ){
+                    SV ** target_key_ptr = av_fetch((AV*)src, j, 0);
+                    int found;
+                    if( target_key_ptr ){
+                        STRLEN target_keylen;
+                        char * target_key = SvPV(*target_key_ptr, target_keylen);
+                        found = (keylen == target_keylen && 0 == memcmp(key, target_key, keylen));
+                    }
+                    else{
+                        found = (keylen == 0);
+                    }
+
+                    if( found )
+                        break;
+                    j -= 2;
+                }
+
+                U32 is_alias = (i != -*const_index-1 && opt & OPT_ALIAS);
+                if( j>=0 ){ /* found */
+                    SV ** target_val_ptr = av_fetch((AV*)src, j+1, (is_alias ? 1 : 0));
+                    my_sv_set(aTHX_ list_holder, target_val_ptr, is_alias);
+                }
+                else{ /* not found */
+                    my_sv_set(aTHX_ list_holder, NULL, is_alias);
+                }
+            }
             if( i == -*const_index-1 )
                 ++const_index;
         }

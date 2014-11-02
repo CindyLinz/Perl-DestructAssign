@@ -8,8 +8,11 @@
 use strict;
 use warnings;
 
-use Test::More tests => 28;
-BEGIN { use_ok('DestructAssign') };
+use Test::More tests => 30;
+BEGIN {
+    use_ok('DestructAssign');
+    DestructAssign->import('des', 'des_alias');
+};
 
 #########################
 
@@ -19,27 +22,27 @@ BEGIN { use_ok('DestructAssign') };
 # Synopsis
 {
   my($w, $x, $y, $z);
-  DestructAssign::des [$x, [undef, {y => $y}, undef, $w], $z] = [2, [25, {x => 'x', y => 3}, 26, 1], 4];
+  des [$x, [undef, {y => $y}, undef, $w], $z] = [2, [25, {x => 'x', y => 3}, 26, 1], 4];
   is_deeply [$w, $x, $y, $z], [1, 2, 3, 4], 'Synopsis1';
   # (use undef as the skipping placeholder)
 
   # put skip index in the list pattern
-  DestructAssign::des [3 => $w, $x, -2 => $y, $z] = [1..9];
+  des [3 => $w, $x, -2 => $y, $z] = [1..9];
   is_deeply [$w, $x, $y, $z], [4, 5, 8, 9], 'Synopsis2';
 
   # put @array or @hash in the list pattern to eat all the remaining element
   my(@array, %hash);
-  DestructAssign::des [3 => @array, -4 => %hash] = [1..8];
+  des [3 => @array, -4 => %hash] = [1..8];
   is_deeply [\@array, \%hash], [[4..8], {5..8}], 'Synopsis3';
 
   # put the same index or hash key
   #  when you need to capture different granularity on the same data structure
-  DestructAssign::des {x => $x, x => [$y, $z]} = {x => [1, 2]};
+  des {x => $x, x => [$y, $z]} = {x => [1, 2]};
   is_deeply [$x, $y, $z], [[1,2], 1, 2], 'Synopsis4';
 
   # use the alias semantics
   my $data = [1, 2, 3];
-  DestructAssign::des_alias [undef, $x] = $data;
+  des_alias [undef, $x] = $data;
   $x = 20;
   is_deeply $data, [1, 20, 3], 'Synopsis5';
 }
@@ -49,9 +52,9 @@ BEGIN { use_ok('DestructAssign') };
     my $a = 5;
     our $y = 7;
     {
-        DestructAssign::des [my $a] = [10];
+        des [my $a] = [10];
         is($a, 10, 'new my');
-        DestructAssign::des [local $y] = [11];
+        des [local $y] = [11];
         is($y, 11, 'new local');
     }
     is($a, 5, 'orig my');
@@ -64,11 +67,11 @@ BEGIN { use_ok('DestructAssign') };
     my $a = 5;
     our $y = 7;
     {
-        DestructAssign::des_alias [my $a] = $data;
+        des_alias [my $a] = $data;
         is($a, 10, 'new my');
         $a = 11;
         is($data->[0], 11, 'alter by des_alias my');
-        DestructAssign::des_alias [local $y] = $data;
+        des_alias [local $y] = $data;
         is($y, 11, 'new local');
         $y = 12;
         is($data->[0], 12, 'alter by des_alias local');
@@ -84,7 +87,7 @@ BEGIN { use_ok('DestructAssign') };
 # two vars alias same field
 {
     my $data = [5];
-    DestructAssign::des_alias [my $a, 0 => my $b] = $data;
+    des_alias [my $a, 0 => my $b] = $data;
     $a = 6;
     is($data->[0], 6, 'data change by a');
     is($a, 6, 'a change by a');
@@ -98,17 +101,24 @@ BEGIN { use_ok('DestructAssign') };
 # to fix bug
 {
     my $a;
-    DestructAssign::des [[$a]] = [[1]];
+    des [[$a]] = [[1]];
     is($a, 1, 'bug fix');
 }
 
 # to fix recursive sub bug
 {
     my $f; $f = sub {
-        DestructAssign::des {a => my $a} = {a => $_[0]};
+        des {a => my $a} = {a => $_[0]};
         is($a, $_[0], 'fix recur bug');
         $f->($_[0]-1) if( $_[0] );
     };
     $f->(2);
     undef $f;
+}
+
+# assign an array to a hash pattern
+{
+    des {a => my $a, b => my $b} = [b => 3, a => 4];
+    is($a, 4, 'assign hash to array 1');
+    is($b, 3, 'assign hash to array 2');
 }
