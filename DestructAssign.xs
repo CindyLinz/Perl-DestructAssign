@@ -247,39 +247,46 @@ static int anonhash_set(pTHX_ SV * sv, MAGIC * mg){
     return anonhash_set_common(aTHX_ sv, mg, 0);
 }
 
-#define MY_HANDLER_GEN(type) \
-    static MGVTBL anon ## type ## _vtbl = { \
-        (int (*)(pTHX_ SV*, MAGIC*)) NULL, \
-        anon ## type ## _set, \
-        (U32 (*)(pTHX_ SV*, MAGIC*)) NULL, \
-        (int (*)(pTHX_ SV*, MAGIC*)) NULL, \
-        (int (*)(pTHX_ SV*, MAGIC*)) NULL \
-    }; \
- \
-    static OP * my_pp_anon ## type (pTHX){ \
-        dVAR; dSP; dMARK; \
-        SV ** body; \
-        int nitems = SP-MARK; \
-        SV * ret; \
-        I32 holder_size = nitems * sizeof(SV*) + sizeof(I32*); \
-        char * list_holder = alloca(holder_size); \
- \
-        Copy(MARK+1, list_holder + sizeof(I32*), nitems, SV*); \
-        *(I32**)list_holder = (I32*)SvPVX(cSVOPx_sv(PL_op->op_sibling)); \
- \
-        SP = MARK+1; \
- \
-        ret = SETs(sv_2mortal(newSV(0))); \
-        SvUPGRADE(ret, SVt_PVMG); \
-        sv_magicext(ret, ret, PERL_MAGIC_ext, &anon ## type ## _vtbl, list_holder, holder_size); \
- \
-        RETURN; \
-    }
+static inline void init_set_vtbl(MGVTBL *vtbl, int(*setter)(pTHX_ SV*, MAGIC*)){
+    vtbl->svt_get = NULL;
+    vtbl->svt_set = setter;
+    vtbl->svt_len = NULL;
+    vtbl->svt_clear = NULL;
+    vtbl->svt_free = NULL;
+}
+static MGVTBL anonlist_vtbl, anonlist_alias_vtbl, anonhash_vtbl, anonhash_alias_vtbl;
 
-MY_HANDLER_GEN(list);
-MY_HANDLER_GEN(hash);
-MY_HANDLER_GEN(list_alias);
-MY_HANDLER_GEN(hash_alias);
+static inline OP * my_pp_anonlisthash_common(pTHX_ MGVTBL *vtbl){
+    dVAR; dSP; dMARK;
+    SV ** body;
+    int nitems = SP-MARK;
+    SV * ret;
+    I32 holder_size = nitems * sizeof(SV*) + sizeof(I32*);
+    char * list_holder = alloca(holder_size);
+
+    Copy(MARK+1, list_holder + sizeof(I32*), nitems, SV*);
+    *(I32**)list_holder = (I32*)SvPVX(cSVOPx_sv(PL_op->op_sibling));
+
+    SP = MARK+1;
+
+    ret = SETs(sv_2mortal(newSV(0)));
+    SvUPGRADE(ret, SVt_PVMG);
+    sv_magicext(ret, ret, PERL_MAGIC_ext, vtbl, list_holder, holder_size);
+
+    RETURN;
+}
+static OP * my_pp_anonlist(pTHX){
+    return my_pp_anonlisthash_common(aTHX_ &anonlist_vtbl);
+}
+static OP * my_pp_anonlist_alias(pTHX){
+    return my_pp_anonlisthash_common(aTHX_ &anonlist_alias_vtbl);
+}
+static OP * my_pp_anonhash(pTHX){
+    return my_pp_anonlisthash_common(aTHX_ &anonhash_vtbl);
+}
+static OP * my_pp_anonhash_alias(pTHX){
+    return my_pp_anonlisthash_common(aTHX_ &anonhash_alias_vtbl);
+}
 
 static void prepare_anonlisthash_list1(pTHX_ OP *o, U32 opt, UV *const_count, UV *pattern_count){
     OP *kid;
@@ -495,6 +502,10 @@ MODULE = DestructAssign		PACKAGE = DestructAssign
 INCLUDE: const-xs.inc
 
 BOOT:
+    init_set_vtbl(&anonlist_vtbl, anonlist_set);
+    init_set_vtbl(&anonlist_alias_vtbl, anonlist_alias_set);
+    init_set_vtbl(&anonhash_vtbl, anonhash_set);
+    init_set_vtbl(&anonhash_alias_vtbl, anonhash_alias_set);
 #if PERL_VERSION_GE(5,14,0)
     cv_set_call_checker(get_cv("DestructAssign::des", TRUE), des_check, &PL_sv_undef);
     cv_set_call_checker(get_cv("DestructAssign::des_alias", TRUE), des_alias_check, &PL_sv_undef);
