@@ -82,6 +82,15 @@ DestructAssign - Destructuring assignment
     # got my($i, $j, $k) = (1, 2, 3)
   }
 
+  # use hash pattern to match an array reference
+  sub f {
+    des {
+      name => my $name,
+      score => my $score,
+    } = \@_;
+  }
+  f(name => 'Cindy', score => 95);
+
 =head1 DESCRIPTION
 
 This mod provides destructuring assignment for Perl.
@@ -258,7 +267,7 @@ To match a list reference
 
 =item anonymous hash {..}
 
-To match a hash reference
+To match a hash reference or an array reference
 
 =item scalar variable $xx
 
