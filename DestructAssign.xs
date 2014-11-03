@@ -222,11 +222,20 @@ static inline int anonhash_set_common(pTHX_ SV * sv, MAGIC * mg, U32 opt){
     for(I32 i=0; i<nitems; ++i, ++list_holder){
         if( i==*const_index ){
             key = SvPV(*list_holder, keylen);
+#ifdef DEBUG
+            printf("got key: %s\n", key);
+#endif
             ++const_index;
         }
         else{
             if( SvTYPE(src)==SVt_PVHV ){
                 SV ** ptr_val = hv_fetch((HV*)src, key, keylen, 0);
+#ifdef DEBUG
+                if( ptr_val )
+                    printf("got val: %s\n", SvPV_nolen(*ptr_val));
+                else
+                    printf("got val: NULL\n");
+#endif
                 my_sv_set(aTHX_ list_holder, ptr_val, (i != -*const_index-1 && opt & OPT_ALIAS));
             }
             else{ /* SvTYPE(src)==SVt_PVAV */
@@ -315,61 +324,176 @@ static OP * my_pp_anonhash_alias(pTHX){
     return my_pp_anonlisthash_common(aTHX_ &anonhash_alias_vtbl);
 }
 
-static void prepare_anonlisthash_list1(pTHX_ OP *o, U32 opt, UV *const_count, UV *pattern_count){
+static OP* my_pp_fetch_next_padname(pTHX){
+#ifdef DEBUG
+    puts("my_pp_fetch_next_padname");
+#endif
+
+    CV *curr_cv = find_runcv(NULL);
+    if( curr_cv && CvPADLIST(curr_cv) ){
+        AV* padlist_av =
+#ifdef PadlistARRAY
+            *PadlistARRAY(CvPADLIST(curr_cv));
+#else
+            (AV*)(*av_fetch((AV*)CvPADLIST(curr_cv), 0, FALSE));
+#endif
+        SV* padname_sv = *av_fetch(
+            padlist_av,
+            PL_op->op_sibling->op_targ,
+            FALSE
+        );
+
+        STRLEN padnamelen;
+        char * padname = SvPV(padname_sv, padnamelen);
+        if( padnamelen>=3 && padname[0]=='$' && padname[1]=='#' ){
+            sv_setpvn(cSVOP_sv, padname+2, padnamelen-2);
+        }
+        else{
+            sv_setpvn(cSVOP_sv, padname+1, padnamelen-1);
+        }
+    }
+
+    PL_op->op_ppaddr = PL_ppaddr[OP_CONST];
+
+#ifdef DEBUG
+    puts("my_pp_fetch_next_padname end");
+#endif
+
+    return PL_ppaddr[OP_CONST](aTHX);
+}
+
+static void prepare_anonlisthash_list1(pTHX_ OP *o, U32 opt, UV *const_count, UV *pattern_count, int *last_is_const_p){
     if( cLISTOPo->op_first->op_type!=OP_PUSHMARK )
         croak("invalid des pattern");
     for(OP *kid=cLISTOPo->op_first->op_sibling; kid; kid=kid->op_sibling)
         switch( kid->op_type ){
             case OP_LIST:
-                prepare_anonlisthash_list1(aTHX_ kid, opt, const_count, pattern_count);
+                prepare_anonlisthash_list1(aTHX_ kid, opt, const_count, pattern_count, last_is_const_p);
                 break;
             case OP_ANONLIST:
                 ++*pattern_count;
                 prepare_anonlist_node(aTHX_ kid, opt);
                 kid = kid->op_sibling; /* skip pattern structure op node */
+                if( last_is_const_p )
+                    *last_is_const_p = 0;
                 break;
             case OP_ANONHASH:
                 ++*pattern_count;
                 prepare_anonhash_node(aTHX_ kid, opt);
                 kid = kid->op_sibling; /* skip pattern structure op node */
+                if( last_is_const_p )
+                    *last_is_const_p = 0;
                 break;
             case OP_CONST:
             case OP_UNDEF:
                 ++*const_count;
+                if( last_is_const_p )
+                    *last_is_const_p = 1;
                 break;
             case OP_PADAV:
             case OP_PADHV:
             case OP_RV2AV:
             case OP_RV2HV:
                 kid->op_flags |= OPf_REF;
-                break;
+                /* fall through */
             case OP_PADSV:
             case OP_RV2SV:
+                if( last_is_const_p ){
+                    if( *last_is_const_p )
+                        *last_is_const_p = 0;
+                    else
+                        ++*const_count;
+                }
                 break;
             default:
                 croak("invalid des pattern (can't contain %s)", OP_NAME(kid));
         }
 }
-static void prepare_anonlisthash_list2(pTHX_ OP *o, U32 opt, I32 *const_index_buffer, I32 *p, I32 *q){
-    for(OP *kid=cLISTOPo->op_first->op_sibling; kid; kid=kid->op_sibling){
+static void prepare_anonlisthash_list2(pTHX_ OP *o, U32 opt, I32 *const_index_buffer, I32 *p, I32 *q, int *last_is_const_p){
+    OP *kid0 = NULL;
+    for(OP *kid=cLISTOPo->op_first->op_sibling; kid; kid0=kid, kid=kid->op_sibling){
         if( kid->op_type == OP_LIST ){
-            prepare_anonlisthash_list2(aTHX_ kid, opt, const_index_buffer, p, q);
+            prepare_anonlisthash_list2(aTHX_ kid, opt, const_index_buffer, p, q, last_is_const_p);
             continue;
         }
-        if( kid->op_type == OP_CONST || kid->op_type == OP_UNDEF )
+        if( kid->op_type == OP_CONST || kid->op_type == OP_UNDEF ){
             const_index_buffer[(*p)++] = *q;
+            if( last_is_const_p )
+                *last_is_const_p = 1;
+        }
         else if( kid->op_type == OP_ANONLIST || kid->op_type == OP_ANONHASH ){
             const_index_buffer[(*p)++] = -*q-1;
             kid = kid->op_sibling;
+            if( last_is_const_p )
+                *last_is_const_p = 0;
+        }
+        else{
+            if( last_is_const_p ){
+                if( *last_is_const_p ){
+                    *last_is_const_p = 0;
+                }
+                else{
+#ifdef DEBUG
+                    printf("put const index\n");
+#endif
+                    const_index_buffer[(*p)++] = (*q)++;
+                    switch( kid->op_type ){
+                        case OP_PADSV:
+                        case OP_PADAV:
+                        case OP_PADHV: {
+                            OP * keyname_op = newSVOP(OP_CUSTOM, 0, newSV(0));
+                            keyname_op->op_ppaddr = my_pp_fetch_next_padname;
+                            if( kid0 )
+                                kid0->op_sibling = keyname_op;
+                            else
+                                cLISTOPo->op_first = keyname_op;
+                            keyname_op->op_sibling = kid;
+                            break;
+                        }
+                        case OP_RV2SV:
+                        case OP_RV2AV:
+                        case OP_RV2HV:
+                            if( kid->op_flags & OPf_KIDS ){
+                                OP * gvop = kUNOP->op_first;
+                                if( gvop->op_type == OP_GVSV || gvop->op_type == OP_GV ){
+#ifdef GvNAME_HEK
+                                    HEK * gv_name_hek = GvNAME_HEK(cGVOPx_gv(gvop));
+                                    SV * keyname_sv = newSVpvn(HEK_KEY(gv_name_hek), HEK_LEN(gv_name_hek));
+#else
+                                    GV * gv = cGVOPx_gv(gvop);
+                                    SV * keyname_sv = newSVpvn(GvNAME(gv), GvNAMELEN(gv));
+#endif
+                                    OP * keyname_op = newSVOP(OP_CONST, 0, keyname_sv);
+                                    if( kid0 )
+                                        kid0->op_sibling = keyname_op;
+                                    else
+                                        cLISTOPo->op_first = keyname_op;
+                                    keyname_op->op_sibling = kid;
+                                }
+                            }
+                            break;
+                    }
+                }
+            }
         }
         ++*q;
     }
 }
-static void prepare_anonlisthash_node(pTHX_ OP *o, U32 opt){
+static void prepare_anonlisthash_node(pTHX_ OP *o, U32 opt, int is_hash){
     UV const_count = 0;
     UV pattern_count = 0;
 
-    prepare_anonlisthash_list1(aTHX_ o, opt, &const_count, &pattern_count);
+    if( is_hash ){
+        int last_is_const = 0;
+        prepare_anonlisthash_list1(aTHX_ o, opt, &const_count, &pattern_count, &last_is_const);
+    }
+    else{
+        prepare_anonlisthash_list1(aTHX_ o, opt, &const_count, &pattern_count, NULL);
+    }
+
+#ifdef DEBUG
+    printf("const_count=%u, pattern_count=%u\n", (unsigned int)const_count, (unsigned int)pattern_count);
+#endif
 
     I32 p = 0, q = 0;
     I32 buffer_len = (const_count+pattern_count+1) * sizeof(I32);
@@ -379,7 +503,13 @@ static void prepare_anonlisthash_node(pTHX_ OP *o, U32 opt){
 
     I32 * const_index_buffer = (I32*)SvPVX(buffer_sv);
 
-    prepare_anonlisthash_list2(aTHX_ o, opt, const_index_buffer, &p, &q);
+    if( is_hash ){
+        int last_is_const = 0;
+        prepare_anonlisthash_list2(aTHX_ o, opt, const_index_buffer, &p, &q, &last_is_const);
+    }
+    else{
+        prepare_anonlisthash_list2(aTHX_ o, opt, const_index_buffer, &p, &q, NULL);
+    }
     const_index_buffer[p] = q;
 
     #ifdef DEBUG
@@ -399,7 +529,7 @@ static void prepare_anonlist_node(pTHX_ OP * o, U32 opt){
 #ifdef DEBUG
     printf("prepare anonlist node\n");
 #endif
-    prepare_anonlisthash_node(aTHX_ o, opt);
+    prepare_anonlisthash_node(aTHX_ o, opt, 0);
     if( opt & OPT_ALIAS )
         o->op_ppaddr = my_pp_anonlist_alias;
     else
@@ -410,7 +540,7 @@ static void prepare_anonhash_node(pTHX_ OP * o, U32 opt){
 #ifdef DEBUG
     printf("prepare anonhash node\n");
 #endif
-    prepare_anonlisthash_node(aTHX_ o, opt);
+    prepare_anonlisthash_node(aTHX_ o, opt, 1);
     if( opt & OPT_ALIAS )
         o->op_ppaddr = my_pp_anonhash_alias;
     else

@@ -8,7 +8,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 30;
+use Test::More tests => 42;
 BEGIN {
     use_ok('DestructAssign');
     DestructAssign->import('des', 'des_alias');
@@ -121,4 +121,17 @@ BEGIN {
     des {a => my $a, b => my $b} = [b => 3, a => 4];
     is($a, 4, 'assign hash to array 1');
     is($b, 3, 'assign hash to array 2');
+}
+
+# use the names of the variables as keys
+for(1,2) {
+    des { my $a, our $b, $c::d } = {b => 2, a => 1, c => 3, d => 4};
+    is($a, 1, 'use the name of the variable a');
+    is($b, 2, 'use the name of the variable b');
+    is($c::d, 4, 'use the name of the variable c::d');
+
+    des {my($x, $y, $z)} = [x => 1, y => 2, z => 3];
+    is($x, 1, 'use the name of the variable x');
+    is($y, 2, 'use the name of the variable y');
+    is($z, 3, 'use the name of the variable z');
 }

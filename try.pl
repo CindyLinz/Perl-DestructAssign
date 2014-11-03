@@ -234,3 +234,22 @@ sub g {
 }
 
 g(3);
+
+for(1,2) {
+    our $A;
+    des { $A::b, $A, my $c } = { A => 2, b => 3, c => 4 };
+    print $A,$/;
+    print $A::b,$/;
+    print $c,$/;
+}
+
+sub modify {
+    des_alias[my($a, $b, $c)] = \@_;
+    $c = $a + $b;
+}
+
+{
+    my($a, $b, $c) = (1, 2, 0);
+    modify($a, $b, $c);
+    print $c, $/;
+}

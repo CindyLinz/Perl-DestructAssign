@@ -27,7 +27,7 @@ our @EXPORT = qw(
 	
 );
 
-our $VERSION = '0.001003';
+our $VERSION = '0.001004';
 
 sub des($) : lvalue { $_[0] }
 sub des_alias($) : lvalue { $_[0] }
@@ -51,6 +51,7 @@ DestructAssign - Destructuring assignment
   use DestructAssign qw(des des_alias);
 
   my($w, $x, $y, $z);
+  our($X, $Y, $Z);
   des [$x, [undef, {y => $y}, undef, $w], $z] = [2, [25, {x => 'x', y => 3}, 26, 1], 4];
   # got ($w, $x, $y, $z) = (1, 2, 3, 4)
   # (use undef as the skipping placeholder)
@@ -58,6 +59,19 @@ DestructAssign - Destructuring assignment
   # put skip index in the list pattern
   des [3 => $w, $x, -2 => $y, $z] = [1..9];
   # got ($w, $x, $y, $z) = (4, 5, 8, 9)
+
+  # use names of the variables in a hash pattern as keys when not assigned
+  des {$x, $Y, $A::B} = {x => 1, Y => 2, B => 3};
+  # got ($x, $Y, $A::B) = (1, 2, 3);
+
+  # use hash pattern to match against an array reference
+  # So we can write:
+  sub f {
+    des {my($score, $name)} = \@_;
+    ...
+  }
+  f(name => 'Cindy', score => 95);
+
 
   # put @array or @hash in the list pattern to eat all the remaining element
   my(@array, %hash);
@@ -82,15 +96,6 @@ DestructAssign - Destructuring assignment
     # got my($i, $j, $k) = (1, 2, 3)
   }
 
-  # use hash pattern to match an array reference
-  sub f {
-    des {
-      name => my $name,
-      score => my $score,
-    } = \@_;
-  }
-  f(name => 'Cindy', score => 95);
-
 =head1 DESCRIPTION
 
 This mod provides destructuring assignment for Perl.
@@ -100,6 +105,48 @@ part of a potentially large and complex data structure.
 I expect it to bring following benefits:
 
 =over 4
+
+=item provide named parameters more easily
+
+Named parameters are good when the number of parameters is large (more than 4).
+With this mod, you can do:
+
+  sub f {
+    des {my($id, $title, $x, $y, $width, $height)} = \@_;
+    # The order is not important.
+    ...
+  }
+
+  f(
+    id => 1,
+    title => 'Untitled',
+    x => 10, y => 10,
+    width => 200, height => 150,
+  );
+
+=item enhance the readability by pointing out all the elements you might touch at the begining of each subroutine
+
+It's a good habit to name parameters instead of access @_ directly
+(except you want to modify caller's arguments).
+This mod extend the ability to name parameters in the deep structure.
+You can explicitly list all the elements you might touch in the subroutine.
+
+  sub f {
+    des [my $x, { id => my $id, amount => my $amount }] = \@_;
+    # or use des_alias, if you need to modify the passed parameters.
+    des_alias [my $x, { id => my $id, amount => my $amount }] = \@_;
+  }
+
+Even if you want to modify caller's arguments, you can still use "des_alias" to name them.
+
+  sub add {
+    des_alias [my($a, $b, $sum)] = \@_;
+    $sum = $a + $b;
+  }
+
+  my($a, $b, $c) = (1, 2, 0);
+  add($a, $b, $c);
+  # $c = 3
 
 =item enhance the performance by avoiding repeatedly digging into complex data structures
 
@@ -176,7 +223,7 @@ We could write
       }
     },
   ] = [$player1, $player2];
-  
+
   while( hp1>0 && hp2>0 ) {
     my $hit1 = ($hand_dura1 && $attack1) - ($body_dura2 && $protect2);
     my $hit2 = ($hand_dura2 && $attack2) - ($body_dura1 && $protect1);
@@ -190,19 +237,6 @@ We could write
     --$body_dura1 if( $body_dura1 );
     --$hand_dura2 if( $hand_dura2 );
     --$body_dura2 if( $body_dura2 );
-  }
-
-=item enhance the readability by pointing out all the elements you might touch at the begining of each subroutine
-
-It's a good habit to write named parameters instead of access @_ directly
-(except you want to modify the caller's arguments).
-This mod extend the ability to name parameters in the deep structure.
-You can explicitly list all the elements you might touch in the subroutine.
-
-  sub f {
-    des [my $x, { id => my $id, amount => my $amount }] = \@_;
-    # or use des_alias, if you need to modify the passed parameters.
-    des_alias [my $x, { id => my $id, amount => my $amount }] = \@_;
   }
 
 =back
