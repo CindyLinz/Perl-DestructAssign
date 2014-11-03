@@ -61,16 +61,21 @@ DestructAssign - Destructuring assignment
   # got ($w, $x, $y, $z) = (4, 5, 8, 9)
 
   # use names of the variables in a hash pattern as keys when not assigned
-  des {$x, $Y, $A::B} = {x => 1, Y => 2, B => 3};
-  # got ($x, $Y, $A::B) = (1, 2, 3);
+  # use previously used key for a sub-pattern when not assigned
+  des {$x, $A::B, $Y, [$a, $b]} = {x => 1, Y => [9, 8], B => 3};
+  # got ($x, $Y, $A::B, $a, $b) = (1, [9,8], 3, 9, 8);
 
   # use hash pattern to match against an array reference
   # So we can write:
   sub f {
-    des {my($score, $name)} = \@_;
+    des {my($score, $name, $detail), {my($math, $english)}} = \@_;
     ...
   }
-  f(name => 'Cindy', score => 95);
+  f(
+    name => 'Cindy',
+    score => 95,
+    detail => {math => 90, english => 30, bios => 60},
+  );
 
 
   # put @array or @hash in the list pattern to eat all the remaining element
