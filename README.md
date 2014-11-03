@@ -4,10 +4,10 @@ DestructAssign - Destructuring assignment
 
 # SYNOPSIS
 
-```perl
     use DestructAssign qw(des des_alias);
 
     my($w, $x, $y, $z);
+    our($X, $Y, $Z);
     des [$x, [undef, {y => $y}, undef, $w], $z] = [2, [25, {x => 'x', y => 3}, 26, 1], 4];
     # got ($w, $x, $y, $z) = (1, 2, 3, 4)
     # (use undef as the skipping placeholder)
@@ -15,6 +15,19 @@ DestructAssign - Destructuring assignment
     # put skip index in the list pattern
     des [3 => $w, $x, -2 => $y, $z] = [1..9];
     # got ($w, $x, $y, $z) = (4, 5, 8, 9)
+
+    # use names of the variables in a hash pattern as keys when not assigned
+    des {$x, $Y, $A::B} = {x => 1, Y => 2, B => 3};
+    # got ($x, $Y, $A::B) = (1, 2, 3);
+
+    # use hash pattern to match against an array reference
+    # So we can write:
+    sub f {
+      des {my($score, $name)} = \@_;
+      ...
+    }
+    f(name => 'Cindy', score => 95);
+
 
     # put @array or @hash in the list pattern to eat all the remaining element
     my(@array, %hash);
@@ -38,7 +51,6 @@ DestructAssign - Destructuring assignment
       des [my($i, $j), { k => my $k }] = [1, 2, {k => 3}];
       # got my($i, $j, $k) = (1, 2, 3)
     }
-```
 
 # DESCRIPTION
 
@@ -48,11 +60,52 @@ part of a potentially large and complex data structure.
 
 I expect it to bring following benefits:
 
+- provide named parameters more easily
+
+    Named parameters are good when the number of parameters is large (more than 4).
+    With this mod, you can do:
+
+        sub f {
+          des {my($id, $title, $x, $y, $width, $height)} = \@_;
+          # The order is not important.
+          ...
+        }
+
+        f(
+          id => 1,
+          title => 'Untitled',
+          x => 10, y => 10,
+          width => 200, height => 150,
+        );
+
+- enhance the readability by pointing out all the elements you might touch at the begining of each subroutine
+
+    It's a good habit to name parameters instead of access @\_ directly
+    (except you want to modify caller's arguments).
+    This mod extend the ability to name parameters in the deep structure.
+    You can explicitly list all the elements you might touch in the subroutine.
+
+        sub f {
+          des [my $x, { id => my $id, amount => my $amount }] = \@_;
+          # or use des_alias, if you need to modify the passed parameters.
+          des_alias [my $x, { id => my $id, amount => my $amount }] = \@_;
+        }
+
+    Even if you want to modify caller's arguments, you can still use "des\_alias" to name them.
+
+        sub add {
+          des_alias [my($a, $b, $sum)] = \@_;
+          $sum = $a + $b;
+        }
+
+        my($a, $b, $c) = (1, 2, 0);
+        add($a, $b, $c);
+        # $c = 3
+
 - enhance the performance by avoiding repeatedly digging into complex data structures
 
     Suppose we have data structures like this:
 
-    ```perl
         my $player1 = {
           id => 25,
           hp => 8100,
@@ -72,11 +125,9 @@ I expect it to bring following benefits:
           },
         };
         my $player2 = ...;
-    ```
 
     Instead of
 
-    ```perl
         while( $player1->{hp}>0 && $player2->{hp}>0 ) {
           my $hit1 =
               ($player1->{armor}{hand}{durability} && $player1->{armor}{hand}{attack}) -
@@ -95,11 +146,9 @@ I expect it to bring following benefits:
           --$player2->{armor}{hand}{durability} if( $player2->{armor}{hand}{durability} );
           --$player2->{armor}{body}{durability} if( $player2->{armor}{body}{durability} );
         }
-    ```
 
     We could write
 
-    ```perl
         des_alias [
           {
             hp => my $hp1,
@@ -128,7 +177,7 @@ I expect it to bring following benefits:
             }
           },
         ] = [$player1, $player2];
-        
+
         while( hp1>0 && hp2>0 ) {
           my $hit1 = ($hand_dura1 && $attack1) - ($body_dura2 && $protect2);
           my $hit2 = ($hand_dura2 && $attack2) - ($body_dura1 && $protect1);
@@ -143,22 +192,6 @@ I expect it to bring following benefits:
           --$hand_dura2 if( $hand_dura2 );
           --$body_dura2 if( $body_dura2 );
         }
-    ```
-
-- enhance the readability by pointing out all the elements you might touch at the begining of each subroutine
-
-    It's a good habit to write named parameters instead of access @\_ directly
-    (except you want to modify the caller's arguments).
-    This mod extend the ability to name parameters in the deep structure.
-    You can explicitly list all the elements you might touch in the subroutine.
-
-    ```perl
-        sub f {
-          des [my $x, { id => my $id, amount => my $amount }] = \@_;
-          # or use des_alias, if you need to modify the passed parameters.
-          des_alias [my $x, { id => my $id, amount => my $amount }] = \@_;
-        }
-    ```
 
 I've tested this mod in Perl 5.8.9, 5.10.1, 5.12.5, 5.14.4, 5.16.3, 5.18.2, 5.20.0 (by perlbrew) on x86\_64.
 
@@ -185,7 +218,7 @@ None by default.
     It's recommended to use brand new lexical variables or localized variables to do it.
 
     Like this..
-    ```perl
+
         # some variables outside..
         my $a = 123;
         our $y = 456;
@@ -200,7 +233,6 @@ None by default.
         $a = 7;
         $y = 8;
         # $data = [5, 6]; # the $data will not be changed.
-    ```
 
 ## PATTERN
 
@@ -215,7 +247,7 @@ The elements of them could be
 
 - anonymous hash {..}
 
-    To match a hash reference
+    To match a hash reference or an array reference
 
 - scalar variable $xx
 
