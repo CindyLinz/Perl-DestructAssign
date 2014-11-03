@@ -1,5 +1,8 @@
 Revision history for Perl extension DestructAssign.
 
+0.2      2014.11.3
+      Bump version
+
 0.1.4    2014.11.3
       Now we can use hash pattern to match against a array reference
       Use names of variables in hash patterns as keys when not specified keys for them.
