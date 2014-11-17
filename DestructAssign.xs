@@ -346,9 +346,15 @@ static OP* my_pp_fetch_next_padname(pTHX){
         STRLEN padnamelen;
         char * padname = SvPV(padname_sv, padnamelen);
         if( padnamelen>=3 && padname[0]=='$' && padname[1]=='#' ){
+#ifdef DEBUG
+            printf("got name: %s\n", padname+2);
+#endif
             sv_setpvn(cSVOP_sv, padname+2, padnamelen-2);
         }
         else{
+#ifdef DEBUG
+            printf("got name: %s\n", padname+1);
+#endif
             sv_setpvn(cSVOP_sv, padname+1, padnamelen-1);
         }
     }
@@ -410,8 +416,8 @@ static void prepare_anonlisthash_list1(pTHX_ OP *o, U32 opt, UV *const_count, UV
         }
 }
 static void prepare_anonlisthash_list2(pTHX_ OP *o, U32 opt, I32 *const_index_buffer, I32 *p, I32 *q, int *last_is_const_p){
-    OP *kid0 = NULL;
-    for(OP *kid=cLISTOPo->op_first->op_sibling; kid; kid0=kid, kid=kid->op_sibling){
+    OP *kid0 = cLISTOPo->op_first;
+    for(OP *kid=kid0->op_sibling; kid; kid0=kid, kid=kid->op_sibling){
         if( kid->op_type == OP_LIST ){
             prepare_anonlisthash_list2(aTHX_ kid, opt, const_index_buffer, p, q, last_is_const_p);
             continue;
@@ -443,10 +449,7 @@ static void prepare_anonlisthash_list2(pTHX_ OP *o, U32 opt, I32 *const_index_bu
                         case OP_PADHV: {
                             OP * keyname_op = newSVOP(OP_CUSTOM, 0, newSV(0));
                             keyname_op->op_ppaddr = my_pp_fetch_next_padname;
-                            if( kid0 )
-                                kid0->op_sibling = keyname_op;
-                            else
-                                cLISTOPo->op_first = keyname_op;
+                            kid0->op_sibling = keyname_op;
                             keyname_op->op_sibling = kid;
                             break;
                         }
@@ -464,10 +467,7 @@ static void prepare_anonlisthash_list2(pTHX_ OP *o, U32 opt, I32 *const_index_bu
                                     SV * keyname_sv = newSVpvn(GvNAME(gv), GvNAMELEN(gv));
 #endif
                                     OP * keyname_op = newSVOP(OP_CONST, 0, keyname_sv);
-                                    if( kid0 )
-                                        kid0->op_sibling = keyname_op;
-                                    else
-                                        cLISTOPo->op_first = keyname_op;
+                                    kid0->op_sibling = keyname_op;
                                     keyname_op->op_sibling = kid;
                                 }
                             }

@@ -8,7 +8,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 42;
+use Test::More tests => 48;
 BEGIN {
     use_ok('DestructAssign');
     DestructAssign->import('des', 'des_alias');
@@ -134,4 +134,20 @@ for(1,2) {
     is($x, 1, 'use the name of the variable x');
     is($y, 2, 'use the name of the variable y');
     is($z, 3, 'use the name of the variable z');
+}
+
+# bug fix
+{
+    des{
+        my($a, $b, $c), d => {
+            my($x, $y, $z)
+        },
+    } = {a => 1, b => 2, c => 3, d => {x => 10, y => 11, z => 12}};
+
+    is($a, 1, 'nest hash key by var name');
+    is($b, 2, 'nest hash key by var name');
+    is($c, 3, 'nest hash key by var name');
+    is($x, 10, 'nest hash key by var name');
+    is($y, 11, 'nest hash key by var name');
+    is($z, 12, 'nest hash key by var name');
 }

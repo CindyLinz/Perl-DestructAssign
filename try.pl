@@ -253,3 +253,14 @@ sub modify {
     modify($a, $b, $c);
     print $c, $/;
 }
+
+{
+    my($a, $b, $c, $d, $x, $y, $z);
+    des{
+        $a, $b, $c,
+        d => {
+            $x, $y, $z
+        },
+    } = {a => 1, b => 2, c => 3, d => {x => 10, y => 11, z => 12}};
+    print "$a $b $c $x $y $z\n";
+}
