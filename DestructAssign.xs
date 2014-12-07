@@ -24,6 +24,17 @@
 #define OPT_MY 1
 #define OPT_ALIAS 2
 
+#ifdef DEBUG
+static void analyse_op_tree(pTHX_ OP *o, int depth){
+    for(int i=0; i<depth; ++i)
+        printf("  ");
+    printf("%s=%p op_next=%p op_flags=%X op_private=%X\n", OP_NAME(o), (void*)o, (void*)o->op_next, o->op_flags, o->op_private);
+    if( o->op_flags & OPf_KIDS )
+        for(OP *kid=cUNOPo->op_first; kid; kid=kid->op_sibling)
+            analyse_op_tree(aTHX_ kid, depth+1);
+}
+#endif
+
 static int sv_alias_get(pTHX_ SV* sv, MAGIC *mg){
 #ifdef DEBUG
     puts("sv_alias_get");
@@ -84,13 +95,13 @@ static inline int anonlist_set_common(pTHX_ SV * sv, MAGIC * mg, U32 opt){
 #endif
 
     if( !SvROK(sv) ){
-        warn("assign non-ref value but %d to a list pattern", SvTYPE(sv));
+        warn("assign non-ref value but SvTYPE=%d to a list pattern", SvTYPE(sv));
         return 0;
     }
 
     SV * src = SvRV(sv);
     if( SvTYPE(src)!=SVt_PVAV ){
-        warn("assign non array ref value but %d ref to a list pattern", SvTYPE(SvRV(sv)));
+        warn("assign non array ref value but a ref of SvTYPE=%d to a list pattern", SvTYPE(SvRV(sv)));
         return 0;
     }
 
@@ -215,7 +226,7 @@ static inline int anonhash_set_common(pTHX_ SV * sv, MAGIC * mg, U32 opt){
         case SVt_PVAV:
             break;
         default:
-            warn("assign non hash ref value to a hash pattern");
+            warn("assign non hash ref value but a ref to a SvTYPE=%d to a hash pattern", SvTYPE(src));
             return 0;
     }
 
@@ -369,12 +380,14 @@ static OP* my_pp_fetch_next_padname(pTHX){
 }
 
 static void prepare_anonlisthash_list1(pTHX_ OP *o, U32 opt, UV *const_count, UV *pattern_count, int *last_is_const_p){
-    if( cLISTOPo->op_first->op_type!=OP_PUSHMARK )
-        croak("invalid des pattern");
-    for(OP *kid=cLISTOPo->op_first->op_sibling; kid; kid=kid->op_sibling)
+    for(OP *kid=cLISTOPo->op_first; kid; kid=kid->op_sibling)
         switch( kid->op_type ){
+            case OP_PUSHMARK:
+                break;
+            case OP_NULL:
             case OP_LIST:
-                prepare_anonlisthash_list1(aTHX_ kid, opt, const_count, pattern_count, last_is_const_p);
+                if( kid->op_flags & OPf_KIDS )
+                    prepare_anonlisthash_list1(aTHX_ kid, opt, const_count, pattern_count, last_is_const_p);
                 break;
             case OP_ANONLIST:
                 ++*pattern_count;
@@ -418,7 +431,7 @@ static void prepare_anonlisthash_list1(pTHX_ OP *o, U32 opt, UV *const_count, UV
 static void prepare_anonlisthash_list2(pTHX_ OP *o, U32 opt, I32 *const_index_buffer, I32 *p, I32 *q, int *last_is_const_p){
     OP *kid0 = cLISTOPo->op_first;
     for(OP *kid=kid0->op_sibling; kid; kid0=kid, kid=kid->op_sibling){
-        if( kid->op_type == OP_LIST ){
+        if( (kid->op_flags & OPf_KIDS) && (kid->op_type == OP_LIST || kid->op_type == OP_NULL) ){
             prepare_anonlisthash_list2(aTHX_ kid, opt, const_index_buffer, p, q, last_is_const_p);
             continue;
         }
@@ -587,6 +600,9 @@ static OP* my_pp_entersub(pTHX){
 }
 
 static OP* des_check(pTHX_ OP* o, GV *namegv, SV *ckobj){
+#ifdef DEBUG
+    analyse_op_tree(aTHX_ o, 0);
+#endif
     if( o->op_flags & OPf_KIDS ){
         unsigned int found_index = 0;
         for(OP *kid=cUNOPo->op_first; kid; kid=kid->op_sibling)
@@ -597,6 +613,9 @@ static OP* des_check(pTHX_ OP* o, GV *namegv, SV *ckobj){
 }
 
 static OP* des_alias_check(pTHX_ OP* o, GV *namegv, SV *ckobj){
+#ifdef DEBUG
+    analyse_op_tree(aTHX_ o, 0);
+#endif
     if( o->op_flags & OPf_KIDS ){
         unsigned int found_index = 0;
         for(OP *kid=cUNOPo->op_first; kid; kid=kid->op_sibling)
