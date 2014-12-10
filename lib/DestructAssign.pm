@@ -27,7 +27,7 @@ our @EXPORT = qw(
 	
 );
 
-our $VERSION = '0.002002';
+our $VERSION = '0.002003';
 
 sub des($) : lvalue { $_[0] }
 sub des_alias($) : lvalue { $_[0] }
@@ -246,7 +246,7 @@ We could write
 
 =back
 
-I've tested this mod in Perl 5.8.9, 5.10.1, 5.12.5, 5.14.4, 5.16.3, 5.18.2, 5.20.0 (by perlbrew) on x86_64.
+This mod is tested in Perl 5.8.9, 5.10.1, 5.12.5, 5.14.4, 5.16.3, 5.18.2, 5.20.0, 5.21.6, 5.21.7 on x86_64.
 
 =head2 EXPORT
 
@@ -362,7 +362,11 @@ It didn't provide alias semantics either, though it could be added easily if nee
 
 =head1 AUTHOR
 
-Cindy Wang (CindyLinz)
+Cindy Wang (CindyLinz) <cindy@cpan.org>
+
+=head1 CONTRIBUTOR
+
+Father Chrysostomos <sprout@cpan.org>
 
 =head1 COPYRIGHT AND LICENSE
 

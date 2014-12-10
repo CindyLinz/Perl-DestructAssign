@@ -212,7 +212,7 @@ I expect it to bring following benefits:
     }
     ```
 
-I've tested this mod in Perl 5.8.9, 5.10.1, 5.12.5, 5.14.4, 5.16.3, 5.18.2, 5.20.0 (by perlbrew) on x86\_64.
+This mod is tested in Perl 5.8.9, 5.10.1, 5.12.5, 5.14.4, 5.16.3, 5.18.2, 5.20.0, 5.21.6, 5.21.7 on x86\_64.
 
 ## EXPORT
 
@@ -322,7 +322,11 @@ It didn't provide alias semantics either, though it could be added easily if nee
 
 # AUTHOR
 
-Cindy Wang (CindyLinz)
+Cindy Wang (CindyLinz) <cindy@cpan.org>
+
+# CONTRIBUTOR
+
+Father Chrysostomos <sprout@cpan.org>
 
 # COPYRIGHT AND LICENSE
 
