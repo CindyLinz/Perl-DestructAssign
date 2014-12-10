@@ -336,11 +336,10 @@ static OP * my_pp_anonhash_alias(pTHX){
 }
 
 #ifndef PadlistARRAY
-typedef AV PADNAMELIST
-typedef SV PADNAME
-#  define PadnamePV SvPV
-#  define PadnameLEN SvCUR
+typedef AV PADNAMELIST;
+typedef SV PADNAME;
 #endif
+
 #ifndef padnamelist_fetch
 #  define padnamelist_fetch(a,b) *av_fetch(a,b,FALSE)
 #endif
@@ -363,8 +362,15 @@ static OP* my_pp_fetch_next_padname(pTHX){
             PL_op->op_sibling->op_targ
         );
 
-        STRLEN const padnamelen = PadnameLEN(padname_sv);
-        char * padname = PadnamePV(padname_sv);
+        STRLEN padnamelen;
+        char * padname;
+#ifdef PadlistARRAY
+        padnamelen = PadnameLEN(padname_sv);
+        padname = PadnamePV(padname_sv);
+#else
+        padname = SvPV(padname_sv, padnamelen);
+#endif
+
         if( padnamelen>=3 && padname[0]=='$' && padname[1]=='#' ){
 #ifdef DEBUG
             printf("got name: %s\n", padname+2);
