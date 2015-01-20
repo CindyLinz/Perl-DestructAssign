@@ -3,11 +3,14 @@
 #include "perl.h"
 #include "XSUB.h"
 
+#define NEED_sv_2pv_flags
+#define NEED_vnewSVpvf
+#define NEED_warner
 #include "ppport.h"
 
 #include "const-c.inc"
 
-//#define DEBUG
+/*#define DEBUG*/
 #define PERL_VERSION_DECIMAL(r,v,s) (r*1000000 + v*1000 + s)
 #define PERL_DECIMAL_VERSION \
   PERL_VERSION_DECIMAL(PERL_REVISION,PERL_VERSION,PERL_SUBVERSION)
@@ -344,6 +347,38 @@ typedef SV PADNAME;
 #  define padnamelist_fetch(a,b) *av_fetch(a,b,FALSE)
 #endif
 
+/* Taken from pp_ctl.c in 5.8.8 */
+/* Thanks to Daniel Silva (dsilva @ github) */
+static CV*
+THX_find_runcv(pTHX_ U32 *db_seqp)
+{
+    PERL_SI      *si;
+
+    if (db_seqp)
+        *db_seqp = PL_curcop->cop_seq;
+    for (si = PL_curstackinfo; si; si = si->si_prev) {
+        I32 ix;
+        for (ix = si->si_cxix; ix >= 0; ix--) {
+            const PERL_CONTEXT *cx = &(si->si_cxstack[ix]);
+            if (CxTYPE(cx) == CXt_SUB || CxTYPE(cx) == CXt_FORMAT) {
+                CV * const cv = cx->blk_sub.cv;
+                /* skip DB:: code */
+                if (db_seqp && PL_debstash && CvSTASH(cv) == PL_debstash) {
+                    *db_seqp = cx->blk_oldcop->cop_seq;
+                    continue;
+                }
+                return cv;
+            }
+            else if (CxTYPE(cx) == CXt_EVAL && !CxTRYBLOCK(cx))
+                return PL_compcv;
+        }
+    }
+    return PL_main_cv;
+}
+#ifndef find_runcv
+#  define find_runcv(d) THX_find_runcv(aTHX_ d)
+#endif
+
 static OP* my_pp_fetch_next_padname(pTHX){
 #ifdef DEBUG
     puts("my_pp_fetch_next_padname");
@@ -391,7 +426,7 @@ static OP* my_pp_fetch_next_padname(pTHX){
     puts("my_pp_fetch_next_padname end");
 #endif
 
-    return PL_ppaddr[OP_CONST](aTHX);
+    return PL_ppaddr[OP_CONST](aTHXR);
 }
 
 static void prepare_anonlisthash_list1(pTHX_ OP *o, U32 opt, UV *const_count, UV *pattern_count, int *last_is_const_p){
@@ -600,7 +635,7 @@ static unsigned int traverse_args(pTHX_ U32 opt, unsigned int found_index,
         return found_index;
     }
 
-    // use the second kid (the first arg)
+    /* use the second kid (the first arg) */
     if( found_index==1 ){
         switch( o->op_type ){
            case OP_ANONLIST:
@@ -622,9 +657,9 @@ static unsigned int traverse_args(pTHX_ U32 opt, unsigned int found_index,
 
 static OP* my_pp_entersub(pTHX){
     dVAR;
-    dMARK; // drop the first pushmark
+    dMARK; /* drop the first pushmark */
     dSP;
-    POPs; // drop the sub name
+    POPs; /* drop the sub name */
 #ifdef DEBUG
     printf("my_pp_entersub\n");
 #endif

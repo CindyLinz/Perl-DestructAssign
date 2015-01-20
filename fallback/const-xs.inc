@@ -1,3 +1,4 @@
+#include "ppport.h"
 void
 constant(sv)
     PREINIT:
