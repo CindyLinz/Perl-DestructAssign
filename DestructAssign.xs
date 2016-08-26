@@ -24,6 +24,14 @@
 #  define LIKELY(x) (x)
 #endif
 
+#ifndef OpSIBLING
+#define OpSIBLING(o) o->op_sibling
+#endif
+
+#ifndef OpMORESIB_set
+#define OpMORESIB_set(o, sib) (o->op_sibling = sib)
+#endif
+
 #define OPT_MY 1
 #define OPT_ALIAS 2
 
@@ -33,7 +41,7 @@ static void analyse_op_tree(pTHX_ OP *o, int depth){
         printf("  ");
     printf("%s=%p op_next=%p op_flags=%X op_private=%X\n", OP_NAME(o), (void*)o, (void*)o->op_next, o->op_flags, o->op_private);
     if( o->op_flags & OPf_KIDS )
-        for(OP *kid=cUNOPo->op_first; kid; kid=kid->op_sibling)
+        for(OP *kid=cUNOPo->op_first; kid; kid=OpSIBLING(kid))
             analyse_op_tree(aTHX_ kid, depth+1);
 }
 #endif
@@ -315,7 +323,7 @@ static inline OP * my_pp_anonlisthash_common(pTHX_ MGVTBL *vtbl){
     char * list_holder = alloca(holder_size);
 
     Copy(MARK+1, list_holder + sizeof(I32*), nitems, SV*);
-    *(I32**)list_holder = (I32*)SvPVX(cSVOPx_sv(PL_op->op_sibling));
+    *(I32**)list_holder = (I32*)SvPVX(cSVOPx_sv(OpSIBLING(PL_op)));
 
     SP = MARK+1;
 
@@ -394,7 +402,7 @@ static OP* my_pp_fetch_next_padname(pTHX){
 #endif
         PADNAME* padname_sv = padnamelist_fetch(
             padlist_av,
-            PL_op->op_sibling->op_targ
+            OpSIBLING(PL_op)->op_targ
         );
 
         STRLEN padnamelen;
@@ -430,7 +438,7 @@ static OP* my_pp_fetch_next_padname(pTHX){
 }
 
 static void prepare_anonlisthash_list1(pTHX_ OP *o, U32 opt, UV *const_count, UV *pattern_count, int *last_is_const_p){
-    for(OP *kid=cLISTOPo->op_first; kid; kid=kid->op_sibling)
+    for(OP *kid=cLISTOPo->op_first; kid; kid=OpSIBLING(kid))
         switch( kid->op_type ){
             case OP_PUSHMARK:
                 break;
@@ -442,14 +450,14 @@ static void prepare_anonlisthash_list1(pTHX_ OP *o, U32 opt, UV *const_count, UV
             case OP_ANONLIST:
                 ++*pattern_count;
                 prepare_anonlist_node(aTHX_ o, kid, opt);
-                kid = kid->op_sibling; /* skip pattern structure op node */
+                kid = OpSIBLING(kid); /* skip pattern structure op node */
                 if( last_is_const_p )
                     *last_is_const_p = 0;
                 break;
             case OP_ANONHASH:
                 ++*pattern_count;
                 prepare_anonhash_node(aTHX_ o, kid, opt);
-                kid = kid->op_sibling; /* skip pattern structure op node */
+                kid = OpSIBLING(kid); /* skip pattern structure op node */
                 if( last_is_const_p )
                     *last_is_const_p = 0;
                 break;
@@ -480,7 +488,7 @@ static void prepare_anonlisthash_list1(pTHX_ OP *o, U32 opt, UV *const_count, UV
 }
 static void prepare_anonlisthash_list2(pTHX_ OP *o, U32 opt, I32 *const_index_buffer, I32 *p, I32 *q, int *last_is_const_p){
     OP *kid0 = cLISTOPo->op_first;
-    for(OP *kid=kid0->op_sibling; kid; kid0=kid, kid=kid->op_sibling){
+    for(OP *kid=OpSIBLING(kid0); kid; kid0=kid, kid=OpSIBLING(kid)){
         if( (kid->op_flags & OPf_KIDS) && (kid->op_type == OP_LIST || kid->op_type == OP_NULL) ){
             prepare_anonlisthash_list2(aTHX_ kid, opt, const_index_buffer, p, q, last_is_const_p);
             continue;
@@ -492,7 +500,7 @@ static void prepare_anonlisthash_list2(pTHX_ OP *o, U32 opt, I32 *const_index_bu
         }
         else if( kid->op_type == OP_ANONLIST || kid->op_type == OP_ANONHASH ){
             const_index_buffer[(*p)++] = -*q-1;
-            kid = kid->op_sibling;
+            kid = OpSIBLING(kid);
             if( last_is_const_p )
                 *last_is_const_p = 0;
         }
@@ -515,8 +523,8 @@ static void prepare_anonlisthash_list2(pTHX_ OP *o, U32 opt, I32 *const_index_bu
 #ifdef op_sibling_splice
                             op_sibling_splice(o, kid0, 0, keyname_op);
 #else
-                            kid0->op_sibling = keyname_op;
-                            keyname_op->op_sibling = kid;
+                            OpMORESIB_set(kid0, keyname_op);
+                            OpMORESIB_set(keyname_op, kid);
 #endif
                             break;
                         }
@@ -538,8 +546,8 @@ static void prepare_anonlisthash_list2(pTHX_ OP *o, U32 opt, I32 *const_index_bu
                                     op_sibling_splice(o, kid0, 0,
                                                       keyname_op);
 #else
-                                    kid0->op_sibling = keyname_op;
-                                    keyname_op->op_sibling = kid;
+                                    OpMORESIB_set(kid0, keyname_op);
+                                    OpMORESIB_set(keyname_op, kid);
 #endif
                                 }
                             }
@@ -599,8 +607,8 @@ static void prepare_anonlisthash_node(pTHX_ OP *parent, OP *o, U32 opt,
 #ifdef op_sibling_splice
     op_sibling_splice(parent, o, 0, buffer_op);
 #else
-    buffer_op->op_sibling = o->op_sibling;
-    o->op_sibling = buffer_op;
+    OpMORESIB_set(buffer_op, OpSIBLING(o));
+    OpMORESIB_set(o, buffer_op);
 #endif
 }
 
@@ -630,7 +638,7 @@ static unsigned int traverse_args(pTHX_ U32 opt, unsigned int found_index,
                                         OP * parent, OP * o){
     if( o->op_type == OP_NULL ){
         if( o->op_flags & OPf_KIDS )
-            for(OP *kid=cUNOPo->op_first; kid; kid=kid->op_sibling)
+            for(OP *kid=cUNOPo->op_first; kid; kid=OpSIBLING(kid))
                 found_index = traverse_args(aTHX_ opt, found_index, o,kid);
         return found_index;
     }
@@ -672,7 +680,7 @@ static OP* des_check(pTHX_ OP* o, GV *namegv, SV *ckobj){
 #endif
     if( o->op_flags & OPf_KIDS ){
         unsigned int found_index = 0;
-        for(OP *kid=cUNOPo->op_first; kid; kid=kid->op_sibling)
+        for(OP *kid=cUNOPo->op_first; kid; kid=OpSIBLING(kid))
             found_index = traverse_args(aTHX_ 0, found_index, o, kid);
         o->op_ppaddr = my_pp_entersub;
     }
@@ -685,7 +693,7 @@ static OP* des_alias_check(pTHX_ OP* o, GV *namegv, SV *ckobj){
 #endif
     if( o->op_flags & OPf_KIDS ){
         unsigned int found_index = 0;
-        for(OP *kid=cUNOPo->op_first; kid; kid=kid->op_sibling)
+        for(OP *kid=cUNOPo->op_first; kid; kid=OpSIBLING(kid))
             found_index = traverse_args(aTHX_ OPT_ALIAS,found_index,o,kid);
         o->op_ppaddr = my_pp_entersub;
     }
@@ -697,9 +705,9 @@ static CV* my_des_cvs[2];
 static OP* (*orig_entersub_check)(pTHX_ OP*);
 static OP* my_entersub_check(pTHX_ OP* o){
     CV *cv = NULL;
-    OP *cvop = ((cUNOPo->op_first->op_sibling) ? cUNOPo : ((UNOP*)cUNOPo->op_first))->op_first->op_sibling;
-    while( cvop->op_sibling )
-        cvop = cvop->op_sibling;
+    OP *cvop = ((OpSIBLING(cUNOPo->op_first)) ? cUNOPo : OpSIBLING(((UNOP*)cUNOPo->op_first))->op_first);
+    while( OpSIBLING(cvop) )
+        cvop = OpSIBLING(cvop);
     if( cvop->op_type == OP_RV2CV && !(o->op_private & OPpENTERSUB_AMPER) ){
         SVOP *tmpop = (SVOP*)((UNOP*)cvop)->op_first;
         switch (tmpop->op_type) {
