@@ -705,7 +705,7 @@ static CV* my_des_cvs[2];
 static OP* (*orig_entersub_check)(pTHX_ OP*);
 static OP* my_entersub_check(pTHX_ OP* o){
     CV *cv = NULL;
-    OP *cvop = ((OpSIBLING(cUNOPo->op_first)) ? cUNOPo : OpSIBLING(((UNOP*)cUNOPo->op_first))->op_first);
+    OP *cvop = OpSIBLING(((OpSIBLING(cUNOPo->op_first)) ? cUNOPo : ((UNOP*)cUNOPo->op_first))->op_first);
     while( OpSIBLING(cvop) )
         cvop = OpSIBLING(cvop);
     if( cvop->op_type == OP_RV2CV && !(o->op_private & OPpENTERSUB_AMPER) ){

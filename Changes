@@ -1,5 +1,8 @@
 Revision history for Perl extension DestructAssign.
 
+0.2.6    2016.8.27
+      Fix bug by version 0.2.5
+
 0.2.5    2016.8.26
       Compatible with newer (5.25 up) perl
 
