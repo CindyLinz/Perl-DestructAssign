@@ -1,6 +1,6 @@
 package DestructAssign;
 
-use 5.008;
+use 5.008009;
 use strict;
 use warnings;
 use Carp;
@@ -27,7 +27,7 @@ our @EXPORT = qw(
 	
 );
 
-our $VERSION = '0.002006';
+our $VERSION = '0.002007';
 
 sub des($) : lvalue { $_[0] }
 sub des_alias($) : lvalue { $_[0] }
